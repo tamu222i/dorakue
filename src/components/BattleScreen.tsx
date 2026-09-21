@@ -3,20 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Character, Skill, Item } from '../domain/models/types.ts';
 import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
 import { calculateDamage, isCriticalHit } from '../domain/services/DamageCalculator.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
+import { isUltimateSkill } from '../domain/services/SkillProgressionService.ts';
+import { UltimateCutIn } from './UltimateCutIn.tsx';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { Swords, Wind, Sparkles, Package, LogOut, FastForward, Play, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Swords, Wind, Sparkles, Package, LogOut, FastForward, Play, RefreshCw, Flame } from 'lucide-react';
 
 interface BattleScreenProps {
   party: PartyAggregate;
   enemy: Character;
   isBoss: boolean;
+  isEasyAssist?: boolean;
   onVictory: (expGained: number, moneyGained: number, leveledUp: { name: string; newLevel: number }[]) => void;
   onEscape: () => void;
   onWipeout: () => void;
@@ -28,6 +31,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   party,
   enemy: initialEnemy,
   isBoss,
+  isEasyAssist = true,
   onVictory,
   onEscape,
   onWipeout,
@@ -54,7 +58,23 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [damageNumber, setDamageNumber] = useState<{ value: number; isCrit: boolean; isHeal?: boolean } | null>(null);
   const [battleSpeed, setBattleSpeed] = useState<1 | 2>(1);
   const [isAutoBattle, setIsAutoBattle] = useState<boolean>(false);
-  const [isEasyAssist, setIsEasyAssist] = useState<boolean>(true);
+  const [activeCutIn, setActiveCutIn] = useState<{ character: Character; skill: Skill } | null>(null);
+  const cutInResolverRef = useRef<(() => void) | null>(null);
+
+  const triggerCutIn = (character: Character, skill: Skill): Promise<void> => {
+    return new Promise<void>((resolve) => {
+      cutInResolverRef.current = resolve;
+      setActiveCutIn({ character, skill });
+    });
+  };
+
+  const handleCutInComplete = () => {
+    setActiveCutIn(null);
+    if (cutInResolverRef.current) {
+      cutInResolverRef.current();
+      cutInResolverRef.current = null;
+    }
+  };
 
   const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +87,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
   // Find first alive member when turn begins
   const currentMember = party.activeMembers[currentMemberIndex];
+
+  // Sort skills so the most powerful breathing techniques appear at the very top for rapid, satisfying selection!
+  const sortedCurrentMemberSkills = useMemo(() => {
+    if (!currentMember || !currentMember.skills) return [];
+    return [...currentMember.skills].sort((a, b) => {
+      // 1. Higher power on top
+      if (b.power !== a.power) return b.power - a.power;
+      // 2. Higher BP cost on top
+      return b.bpCost - a.bpCost;
+    });
+  }, [currentMember]);
 
   // Helper to add log
   const addLog = (msg: string) => {
@@ -144,6 +175,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         }
 
         actor.stats.bp -= skill.bpCost;
+
+        // If this is the character's most powerful / ultimate breathing technique, trigger dramatic cut-in!
+        if (isUltimateSkill(actor, skill)) {
+          addLog(`★【極限奥義】${actor.name} は 全神経を集中させ、渾身の一撃を放つ！！`);
+          await triggerCutIn(actor, skill);
+        }
+
         SoundEngine.playBreathSkill();
         addLog(`『${skill.katagaki ? skill.katagaki + ' ' : ''}${skill.name}』！`);
         await delay(500);
@@ -200,13 +238,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       const expReward = Math.round(enemy.level * 25 + (isBoss ? 200 : 30));
       const moneyReward = Math.round(enemy.level * 20 + (isBoss ? 300 : 50));
-      const { leveledUp } = party.addExpAndMoney(expReward, moneyReward);
+      const { leveledUp, learnedSkills } = party.addExpAndMoney(expReward, moneyReward);
 
       addLog(`経験値 ${expReward} と ${moneyReward} 銭 を かくとくした！`);
       if (leveledUp.length > 0) {
         SoundEngine.playLevelUp();
         for (const l of leveledUp) {
           addLog(`★ ${l.name} は レベル ${l.newLevel} に あがった！ 全能力が向上！`);
+        }
+      }
+      if (learnedSkills && learnedSkills.length > 0) {
+        for (const ls of learnedSkills) {
+          addLog(`✨【新呼吸会得！】${ls.characterName} は 新たな型『${ls.skill.name}』を会得した！！`);
         }
       }
 
@@ -345,21 +388,6 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           <span className="text-slate-400">Lv.{enemy.level}</span>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
-          <button
-            onClick={() => {
-              SoundEngine.playConfirm();
-              setIsEasyAssist(prev => !prev);
-            }}
-            title="かんたんモード：被ダメージ40%軽減、毎ターン自動HP・BP回復、与ダメージ強化"
-            className={`px-2 py-0.5 rounded flex items-center gap-1 text-[11px] font-bold border transition-colors ${
-              isEasyAssist
-                ? 'bg-emerald-700/90 border-emerald-400 text-emerald-100 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
-                : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <ShieldCheck className="w-3 h-3" />
-            <span>{isEasyAssist ? '🔰かんたん:ON' : 'かんたん:OFF'}</span>
-          </button>
           <button
             onClick={() => {
               SoundEngine.playCursor();
@@ -566,40 +594,72 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               </div>
             </div>
           ) : menuMode === 'skills' && currentMember ? (
-            <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
-              <div className="flex justify-between items-center text-[10px] text-slate-400 border-b border-slate-700 pb-1">
-                <span>全集中・呼吸 / 血鬼術</span>
+            <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+              <div className="flex justify-between items-center text-[10px] text-slate-400 border-b border-slate-700 pb-1 sticky top-0 bg-slate-900 z-10">
+                <span className="font-bold text-amber-400 flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-amber-400" />
+                  <span>全集中・呼吸 / 技（強力な順）</span>
+                </span>
                 <button
                   onClick={() => {
                     SoundEngine.playCancel();
                     setMenuMode('main');
                   }}
-                  className="text-amber-400 hover:underline"
+                  className="text-amber-400 hover:underline px-1 py-0.5"
                 >
                   [もどる]
                 </button>
               </div>
 
-              {currentMember.skills.map(sk => {
+              {sortedCurrentMemberSkills.map((sk, idx) => {
                 const canUse = currentMember.stats.bp >= sk.bpCost;
+                const isUltimate = isUltimateSkill(currentMember, sk);
+
                 return (
                   <button
                     key={sk.id}
                     disabled={!canUse}
                     onClick={() => queueAction({ member: currentMember, type: 'skill', skill: sk })}
-                    className={`flex items-center justify-between p-1.5 rounded border text-left text-xs transition-colors ${
-                      canUse
-                        ? 'bg-slate-800 hover:bg-cyan-900 border-slate-600 text-white'
-                        : 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed'
+                    className={`flex items-center justify-between p-2 rounded border text-left text-xs transition-all touch-manipulation ${
+                      !canUse
+                        ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                        : isUltimate
+                        ? 'bg-gradient-to-r from-amber-950/80 via-slate-900 to-rose-950/80 border-amber-400 text-white shadow-[0_0_10px_rgba(245,158,11,0.25)] hover:border-amber-300 active:scale-[0.98]'
+                        : idx === 0
+                        ? 'bg-slate-800 hover:bg-slate-700 border-amber-500/60 text-white'
+                        : 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-white'
                     }`}
                   >
-                    <div>
-                      <div className="font-bold text-cyan-300">{sk.name}</div>
-                      <div className="text-[10px] text-slate-400">{sk.description}</div>
+                    <div className="flex-1 pr-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {isUltimate ? (
+                          <span className="px-1.5 py-0.5 text-[9px] font-black bg-gradient-to-r from-amber-500 to-red-500 text-slate-950 rounded flex items-center gap-0.5 shadow">
+                            <Flame className="w-2.5 h-2.5 text-slate-950" />
+                            【最強奥義】
+                          </span>
+                        ) : idx === 0 && sk.power >= 160 ? (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-rose-600 text-white rounded">
+                            【強】
+                          </span>
+                        ) : sk.effectType === 'heal' ? (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-600 text-white rounded">
+                            【回復】
+                          </span>
+                        ) : null}
+                        <span className={`font-bold ${isUltimate ? 'text-amber-300' : 'text-cyan-300'}`}>
+                          {sk.name}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          {sk.effectType === 'heal' ? `回復力:${sk.power}` : `威力:${sk.power}`}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">{sk.description}</div>
                     </div>
-                    <span className="text-[10px] font-mono text-amber-300 shrink-0 ml-1">
-                      {sk.bpCost}BP
-                    </span>
+                    <div className="text-right shrink-0">
+                      <span className="inline-block px-1.5 py-0.5 bg-slate-950/80 rounded border border-slate-700 text-[10px] font-mono text-amber-300 font-bold">
+                        {sk.bpCost}BP
+                      </span>
+                    </div>
                   </button>
                 );
               })}
@@ -669,6 +729,15 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           </div>
         </DqFrame>
       </div>
+
+      {/* Dramatic Ultimate Breathing Technique Cut-In Overlay */}
+      {activeCutIn && (
+        <UltimateCutIn
+          character={activeCutIn.character}
+          skill={activeCutIn.skill}
+          onComplete={handleCutInComplete}
+        />
+      )}
     </div>
   );
 };

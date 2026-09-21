@@ -173,6 +173,36 @@ class RetroAudioSynthesizer {
     ];
     notes.forEach(n => this.playTone(n.f, 'sawtooth', n.d, n.t, 0.2));
   }
+
+  // Ultimate Cut-In dramatic riser & flash
+  public playUltimateCutIn() {
+    this.playTone(220, 'triangle', 0.15, 0, 0.2);
+    this.playTone(440, 'sawtooth', 0.18, 0.08, 0.25);
+    this.playTone(880, 'square', 0.25, 0.18, 0.3);
+    this.playTone(1320, 'square', 0.35, 0.28, 0.35);
+  }
+
+  // Powerful slash impact
+  public playSlash() {
+    if (this.isMuted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.25);
+
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    } catch {}
+  }
 }
 
 export const SoundEngine = new RetroAudioSynthesizer();

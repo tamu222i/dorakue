@@ -4,6 +4,7 @@
  */
 
 import { Character, Skill, BreathStyle, CorpsRank } from '../models/types.ts';
+import { getSkillsForLevel } from './SkillProgressionService.ts';
 
 // Reusable skill library
 const SKILLS: Record<string, Skill> = {
@@ -1574,5 +1575,82 @@ export function generateCharacterCatalog(): Character[] {
     currentNo++;
   }
 
+  // Ensure all characters (slayers, heroes, supports) start with skills matching their level
+  for (const c of catalog) {
+    if (c.role !== 'demon') {
+      c.skills = getSkillsForLevel(c);
+    }
+  }
+
   return catalog;
+}
+
+/**
+ * Checks whether a character is recognized as a Hashira (現柱、元柱、名前に柱を冠する剣士)
+ */
+export function isHashiraCharacter(c?: Character | null): boolean {
+  if (!c) return false;
+  // 1. Explicit rank
+  if (c.rank === '柱') return true;
+
+  // 2. Known Hashira by ID or name (current, former, and legendary Hashira)
+  const hashiraIds = [
+    'char_giyu',
+    'char_shinobu',
+    'char_rengoku',
+    'char_tengen',
+    'char_muichiro',
+    'char_mitsuri',
+    'char_gyomei',
+    'char_sanemi',
+    'char_obanai',
+    'char_kanae',
+    'char_shinjuro',
+    'char_urokodaki',
+    'char_jigoro',
+    'char_yoriichi',
+  ];
+  if (hashiraIds.includes(c.id)) return true;
+
+  const hashiraNames = [
+    '冨岡義勇',
+    '胡蝶しのぶ',
+    '煉獄杏寿郎',
+    '宇髄天元',
+    '時透無一郎',
+    '甘露寺蜜璃',
+    '悲鳴嶼行冥',
+    '不死川実弥',
+    '伊黒小芭内',
+    '胡蝶カナエ',
+    '煉獄槇寿郎',
+    '鱗滝左近次',
+    '桑島慈悟郎',
+    '継国縁壱'
+  ];
+  if (hashiraNames.includes(c.name)) return true;
+
+  // 3. Title has 柱 (excluding relatives such as 妻 or 弟)
+  if (c.title && c.title.includes('柱')) {
+    if (c.title.includes('妻') || c.title.includes('弟') || c.title.includes('母') || c.title.includes('息子')) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Helper to determine if a story recruitment choice involves any Hashira
+ */
+export function isStoryChoiceHashira(
+  recruitChar?: Character | null,
+  bonusChars: (Character | null | undefined)[] = []
+): boolean {
+  if (isHashiraCharacter(recruitChar)) return true;
+  for (const b of bonusChars) {
+    if (isHashiraCharacter(b)) return true;
+  }
+  return false;
 }

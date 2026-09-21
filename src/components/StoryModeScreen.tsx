@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Character, StoryChapter, StoryChoice } from '../domain/models/types.ts';
 import { STORY_CHAPTERS } from '../domain/services/StoryData.ts';
+import { isHashiraCharacter, isStoryChoiceHashira } from '../domain/services/CharacterCatalog.ts';
 import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
@@ -75,11 +76,11 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
             <h2 className="text-base sm:text-lg font-bold text-amber-300 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-amber-400" />
               <span>
-                <FuriganaText text="原作[げんさく]ものがたり（分岐[ぶんき]選択[せんたく]＆3問[もん]クイズで仲間[なかま]入り！）" />
+                <FuriganaText text="原作[げんさく]ものがたり（柱[はしら]は柱稽古[はしらげいこ]・隊士[たいし]は3問[もん]クイズで仲間[なかま]入り！）" />
               </span>
             </h2>
             <p className="text-xs text-slate-300 mt-1">
-              <FuriganaText text="各章[かくしょう]の物語[ものがたり]を選[えら]び、隊[たい]士[し]の3問[もん]の試[し]練[れん]に答[こた]えて心[こころ]を通[つう]じ合[あ]わせよう！" />
+              <FuriganaText text="柱[はしら]はタイミングミニゲーム、一般[いっぱん]隊士[たいし]は3問[もん]クイズの試[し]練[れん]を突破[とっぱ]して心[こころ]を通[つう]じ合[あ]わせよう！" />
             </p>
           </div>
 
@@ -208,8 +209,11 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
                 <div className="space-y-2">
                   {chapter.choices.map((choice) => {
                     const recruitChar = catalog.find(c => c.id === choice.recruitCharacterId);
+                    const bonusChars = (choice.bonusCharacterIds || [])
+                      .map(id => catalog.find(c => c.id === id))
+                      .filter(Boolean) as Character[];
                     const alreadyHas = recruitChar ? party.hasMember(recruitChar.id) : false;
-                    const isHashira = recruitChar?.rank === '柱';
+                    const isHashira = isStoryChoiceHashira(recruitChar, bonusChars);
 
                     return (
                       <div

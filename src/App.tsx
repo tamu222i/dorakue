@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { generateCharacterCatalog } from './domain/services/CharacterCatalog.ts';
+import { generateCharacterCatalog, isHashiraCharacter } from './domain/services/CharacterCatalog.ts';
 import { PartyAggregate } from './domain/aggregates/PartyAggregate.ts';
 import { STORY_CHAPTERS } from './domain/services/StoryData.ts';
 import { Character, StoryChapter, StoryChoice } from './domain/models/types.ts';
@@ -27,7 +27,7 @@ import { FuriganaText } from './components/Ruby.tsx';
 import { PixelSprite } from './infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from './infrastructure/audio/RetroSound.ts';
 import { BgmEngine, BgmTrackId, TRACKS } from './infrastructure/audio/RetroBGM.ts';
-import { Sparkles, Award, RefreshCw, Flame, Save, RotateCcw, Check, BookOpen, Music, Volume2, VolumeX, Users } from 'lucide-react';
+import { Sparkles, Award, RefreshCw, Flame, Save, RotateCcw, Check, BookOpen, Music, Volume2, VolumeX, Users, ShieldCheck } from 'lucide-react';
 
 type GameScreen = 'world' | 'battle' | 'inn' | 'zukan' | 'story' | 'ending';
 
@@ -108,6 +108,20 @@ export default function App() {
     bonusCharacters: Character[];
     choice: StoryChoice;
   } | null>(null);
+
+  // Beginner Mode / 初心者お助けモード (Top screen control, persisted in localStorage)
+  const [isEasyAssist, setIsEasyAssist] = useState<boolean>(() => {
+    return localStorage.getItem('kimetsu_easy_assist') !== 'false';
+  });
+
+  const toggleEasyAssist = () => {
+    SoundEngine.playConfirm();
+    setIsEasyAssist(prev => {
+      const next = !prev;
+      localStorage.setItem('kimetsu_easy_assist', String(next));
+      return next;
+    });
+  };
 
   // BGM playback state
   const [bgmTrack, setBgmTrack] = useState<BgmTrackId>('gurenge');
@@ -219,11 +233,12 @@ export default function App() {
 
   // Handle Story Mode Choice Selection ("カンタンに仲間呼び出しできすぎるので、3問選択肢だしてすべて一致したときだけ仲間になるように調整して。")
   // And "柱を仲間にするのは柱稽古しないと無理だよね。タイミングミニゲームをクリアしたら仲間になるよ"
+  // "柱のときは3問のクイズの代わりにタイミングミニゲームにしてよ。あと勝手にステージクリアで仲間にならないようにして。クイズかミニゲームかどちらかクリアで仲間だよ"
   const handleSelectStoryRecruit = (choice: StoryChoice, _chapter: StoryChapter) => {
     const recruitChar = catalog.find(c => c.id === choice.recruitCharacterId);
     if (!recruitChar) return;
 
-    // If candidate is a Hashira, trigger the Hashira Training timing mini-game!
+    // Collect bonus characters
     const bonusChars: Character[] = [];
     if (choice.bonusCharacterIds) {
       for (const bId of choice.bonusCharacterIds) {
@@ -232,17 +247,26 @@ export default function App() {
       }
     }
 
-    if (recruitChar.rank === '柱') {
+    // Check if the primary recruit OR any bonus character is a Hashira
+    const hashira = isHashiraCharacter(recruitChar)
+      ? recruitChar
+      : bonusChars.find(c => isHashiraCharacter(c));
+
+    if (hashira) {
+      // It is a Hashira! ALWAYS trigger the Hashira Training timing mini-game!
       SoundEngine.playConfirm();
+      const allRecruits = [recruitChar, ...bonusChars];
+      const otherBonuses = allRecruits.filter(c => c.id !== hashira.id);
+
       setHashiraTrainingCandidate({
-        hashira: recruitChar,
-        bonusCharacters: bonusChars,
+        hashira,
+        bonusCharacters: otherBonuses,
         choice
       });
       return;
     }
 
-    // Open the 3-question recruitment trial modal
+    // Regular recruit (non-Hashira): Open the 3-question recruitment trial modal
     setActiveTrial({
       character: recruitChar,
       bonusCharacters: bonusChars,
@@ -534,6 +558,22 @@ export default function App() {
               <span><FuriganaText text="物語[ものがたり]モード" /></span>
             </button>
 
+            {/* Beginner Mode Toggle (Top Screen Header) */}
+            <button
+              onClick={toggleEasyAssist}
+              className={`px-2.5 py-0.5 rounded border font-bold flex items-center gap-1.5 transition-all touch-manipulation ${
+                isEasyAssist
+                  ? 'border-emerald-400 bg-emerald-950/90 text-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                  : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
+              }`}
+              title="初心者モード：被ダメージ40%軽減、毎ターン自動HP・BP回復、呼吸わざ強化"
+            >
+              <ShieldCheck className={`w-3.5 h-3.5 ${isEasyAssist ? 'text-emerald-400' : 'text-slate-500'}`} />
+              <span>
+                <FuriganaText text={isEasyAssist ? '🔰初心者[しょしんしゃ]モード:ON' : '初心者[しょしんしゃ]モード:OFF'} />
+              </span>
+            </button>
+
             {/* Demon Slayer Retro BGM Toggle */}
             <button
               onClick={handleCycleBgm}
@@ -608,6 +648,7 @@ export default function App() {
             party={party}
             enemy={currentBattle.enemy}
             isBoss={currentBattle.isBoss}
+            isEasyAssist={isEasyAssist}
             onVictory={handleBattleVictory}
             onEscape={() => {
               setCurrentBattle(null);

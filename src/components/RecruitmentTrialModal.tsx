@@ -11,6 +11,8 @@ import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
 import { Sparkles, CheckCircle, XCircle, ChevronRight, RotateCcw, X, HeartHandshake } from 'lucide-react';
+import { isHashiraCharacter } from '../domain/services/CharacterCatalog.ts';
+import { HashiraTrainingModal } from './HashiraTrainingModal.tsx';
 
 interface RecruitmentTrialModalProps {
   character: Character;
@@ -46,6 +48,19 @@ export const RecruitmentTrialModal: React.FC<RecruitmentTrialModalProps> = ({
   }, [character.id, character.name, character.role, character.breathStyle, trialSessionKey, isOpen]);
 
   if (!isOpen) return null;
+
+  // Ultimate fail-safe: if the candidate is a Hashira, redirect to HashiraTrainingModal immediately!
+  if (isHashiraCharacter(character)) {
+    return (
+      <HashiraTrainingModal
+        hashira={character}
+        bonusCharacters={bonusCharacters}
+        isOpen={isOpen}
+        onClose={onClose}
+        onSuccessRecruit={onSuccessRecruit}
+      />
+    );
+  }
 
   const currentQ = trial.questions[currentStep];
 

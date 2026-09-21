@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Character, Item } from '../models/types.ts';
+import { Character, Item, Skill } from '../models/types.ts';
+import { checkNewLearnedSkills, getSkillsForLevel } from '../services/SkillProgressionService.ts';
 
 export class PartyAggregate {
   public activeMembers: Character[] = [];
@@ -140,13 +141,19 @@ export class PartyAggregate {
     return true;
   }
 
-  public addExpAndMoney(exp: number, gold: number): { leveledUp: { name: string; newLevel: number }[] } {
+  public addExpAndMoney(exp: number, gold: number): {
+    leveledUp: { name: string; newLevel: number }[];
+    learnedSkills: { characterName: string; skill: Skill }[];
+  } {
     this.money += gold;
     const leveledUp: { name: string; newLevel: number }[] = [];
+    const learnedSkills: { characterName: string; skill: Skill }[] = [];
 
     for (const member of this.activeMembers) {
       if (member.stats.hp <= 0) continue; // collapsed characters don't gain exp unless revived
       member.exp += exp;
+
+      const initialLevel = member.level;
 
       while (member.exp >= member.nextExp) {
         member.exp -= member.nextExp;
@@ -169,9 +176,33 @@ export class PartyAggregate {
 
         leveledUp.push({ name: member.name, newLevel: member.level });
       }
+
+      // Check if character unlocked new breathing techniques / skills through level-up!
+      if (member.level > initialLevel) {
+        const newSkills = checkNewLearnedSkills(member, initialLevel, member.level);
+        for (const skill of newSkills) {
+          if (!member.skills.some(s => s.id === skill.id)) {
+            member.skills.push(skill);
+            learnedSkills.push({ characterName: member.name, skill });
+          }
+        }
+      }
     }
 
-    return { leveledUp };
+    return { leveledUp, learnedSkills };
+  }
+
+  /**
+   * Synchronize active and roster characters' skills according to their levels.
+   * Ensures low level characters start with weak/basic skills and unlock stronger ones as they grow.
+   */
+  public syncPartySkills(): void {
+    for (const m of this.roster) {
+      const skills = getSkillsForLevel(m);
+      if (skills.length > 0) {
+        m.skills = skills;
+      }
+    }
   }
 
   public useItem(itemId: string, targetIndex: number): { success: boolean; message: string } {

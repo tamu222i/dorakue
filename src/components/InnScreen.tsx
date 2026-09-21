@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
 import { Character, Item } from '../domain/models/types.ts';
 import { InnService } from '../application/InnUseCase.ts';
+import { isHashiraCharacter } from '../domain/services/CharacterCatalog.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
@@ -73,7 +74,7 @@ export const InnScreen: React.FC<InnScreenProps> = ({
   // Scout member (Regular 3-question Quiz vs Hashira Training Mini-Game)
   const handleScout = (candidate: Character) => {
     // If the candidate is a Hashira: Mini-game
-    if (candidate.rank === '柱') {
+    if (isHashiraCharacter(candidate)) {
       SoundEngine.playConfirm();
       setActiveHashiraTraining(candidate);
       return;
@@ -277,7 +278,7 @@ export const InnScreen: React.FC<InnScreenProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {scoutCandidates.map(candidate => {
-                const isHashira = candidate.rank === '柱';
+                const isHashira = isHashiraCharacter(candidate);
                 const scoutCost = Math.max(50, candidate.level * 30);
                 const canAfford = isHashira || party.money >= scoutCost;
 

@@ -221,7 +221,7 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 className="py-2.5 px-3 rounded text-xs font-bold flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white border border-purple-400 shadow-md touch-manipulation"
               >
                 <BookOpen className="w-4 h-4 text-amber-300" />
-                <span><FuriganaText text="原作[げんさく]・3問[もん]試練[しれん]で仲間[なかま]集[あつ]めへ" /></span>
+                <span><FuriganaText text="原作[げんさく]ものがたり（柱稽古[はしらげいこ]＆試練[しれん]で仲間[なかま]集[あつ]め）" /></span>
               </button>
 
               <button
