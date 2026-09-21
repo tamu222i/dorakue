@@ -404,6 +404,54 @@ const SKILLS: Record<string, Skill> = {
     effectType: 'damage',
     description: '背中から突き出した無数の骨の管と触手で全方位を無慈悲に薙ぎ払う。',
     animation: 'beast_fangs'
+  },
+  blood_kamanue_claw: {
+    id: 'sk_b_kamanue',
+    name: '血鬼術 骨爪裂傷',
+    katagaki: '釜鵺の血鬼術',
+    breathStyle: 'blood',
+    bpCost: 14,
+    power: 140,
+    target: 'single',
+    effectType: 'damage',
+    description: '下弦の陸・釜鵺が恐怖を振り切って放つ鋭利な骨爪の連撃。',
+    animation: 'beast_fangs'
+  },
+  blood_mukago_shadow: {
+    id: 'sk_b_mukago',
+    name: '血鬼術 白影突貫',
+    katagaki: '零余子の血鬼術',
+    breathStyle: 'blood',
+    bpCost: 16,
+    power: 160,
+    target: 'single',
+    effectType: 'damage',
+    description: '下弦の肆・零余子が身を翻して残像を残し奇襲を浴びせる。',
+    animation: 'lightning'
+  },
+  blood_wakuraba_dash: {
+    id: 'sk_b_wakuraba',
+    name: '血鬼術 疾風凶刃',
+    katagaki: '病葉の血鬼術',
+    breathStyle: 'blood',
+    bpCost: 18,
+    power: 180,
+    target: 'all',
+    effectType: 'damage',
+    description: '下弦の参・病葉が音をも置き去りにする神速の疾走で斬り抜ける。',
+    animation: 'mist_cut'
+  },
+  blood_rokuro_muscle: {
+    id: 'sk_b_rokuro',
+    name: '血鬼術 怪腕剛砕',
+    katagaki: '轆轤の血鬼術',
+    breathStyle: 'blood',
+    bpCost: 20,
+    power: 210,
+    target: 'all',
+    effectType: 'damage',
+    description: '下弦の弐・轆轤が異様に肥大化した豪腕で大地ごと叩き割る。',
+    animation: 'blood_dark'
   }
 };
 
@@ -1227,6 +1275,70 @@ const CANON_DEMONS: Omit<Character, 'catalogNo'>[] = [
       accentColor: '#dc2626'
     },
     lore: '無惨の全ての血と力、想いを注ぎ込まれて鬼の王へと変貌した炭治郎。陽の光を克服し、日輪刀の斬撃さえ通用しない。仲間たちの命懸けの呼びかけと人間に戻す薬だけが救いとなる。',
+    isUnlocked: false
+  },
+  {
+    id: 'demon_kamanue',
+    name: '下弦の陸・釜鵺',
+    title: '藤襲山の影に潜む下弦',
+    role: 'demon',
+    rank: '下弦',
+    breathStyle: 'blood',
+    level: 14,
+    exp: 0,
+    nextExp: 0,
+    stats: { maxHp: 580, hp: 580, maxBp: 110, bp: 110, attack: 62, defense: 40, speed: 36, luck: 15 },
+    skills: [SKILLS.blood_kamanue_claw],
+    spriteConfig: { hairColor: '#1e293b', skinColor: '#cbd5e1', eyeColor: '#f97316', haoriColor: '#334155', haoriPattern: 'spotted', hasHorn: false, accentColor: '#ea580c' },
+    lore: '十二鬼月・下弦の陸。無惨の粛清から生き延び、2周目の藤襲山の奥深き岩陰に身を隠している。鋭利な骨爪で奇襲する。',
+    isUnlocked: false
+  },
+  {
+    id: 'demon_mukago',
+    name: '下弦の肆・零余子',
+    title: '浅草の闇に潜む下弦',
+    role: 'demon',
+    rank: '下弦',
+    breathStyle: 'blood',
+    level: 18,
+    exp: 0,
+    nextExp: 0,
+    stats: { maxHp: 720, hp: 720, maxBp: 140, bp: 140, attack: 70, defense: 46, speed: 50, luck: 20 },
+    skills: [SKILLS.blood_mukago_shadow],
+    spriteConfig: { hairColor: '#f43f5e', skinColor: '#f8fafc', eyeColor: '#ec4899', haoriColor: '#881337', haoriPattern: 'plain', hasHorn: true, accentColor: '#fb7185' },
+    lore: '十二鬼月・下弦の肆。額に二本の角を持つ女鬼。柱を極度に恐れ、2周目の浅草の地下暗渠に潜伏している。残像を残す疾走で翻弄する。',
+    isUnlocked: false
+  },
+  {
+    id: 'demon_wakuraba',
+    name: '下弦の参・病葉',
+    title: '鼓屋敷の隠し部屋を駆ける下弦',
+    role: 'demon',
+    rank: '下弦',
+    breathStyle: 'blood',
+    level: 22,
+    exp: 0,
+    nextExp: 0,
+    stats: { maxHp: 860, hp: 860, maxBp: 170, bp: 170, attack: 80, defense: 54, speed: 64, luck: 22 },
+    skills: [SKILLS.blood_wakuraba_dash],
+    spriteConfig: { hairColor: '#0f172a', skinColor: '#e2e8f0', eyeColor: '#eab308', haoriColor: '#1e293b', haoriPattern: 'demon_mark', hasHorn: false, accentColor: '#ca8a04' },
+    lore: '十二鬼月・下弦の参。顔に十字の傷を持つ鬼。超高速の逃走と奇襲術を誇り、2周目の鼓屋敷の秘密の狂乱の間に潜む。',
+    isUnlocked: false
+  },
+  {
+    id: 'demon_rokuro',
+    name: '下弦の弐・轆轤',
+    title: '那田蜘蛛山深部に潜む巨漢下弦',
+    role: 'demon',
+    rank: '下弦',
+    breathStyle: 'blood',
+    level: 25,
+    exp: 0,
+    nextExp: 0,
+    stats: { maxHp: 1050, hp: 1050, maxBp: 200, bp: 200, attack: 94, defense: 68, speed: 42, luck: 24 },
+    skills: [SKILLS.blood_rokuro_muscle],
+    spriteConfig: { hairColor: '#334155', skinColor: '#94a3b8', eyeColor: '#ef4444', haoriColor: '#09090b', haoriPattern: 'plain', hasHorn: true, accentColor: '#dc2626' },
+    lore: '十二鬼月・下弦の弐。筋骨隆々の髭面巨漢鬼。無惨の更なる血を求め、2周目の那田蜘蛛山深部の毒繭洞穴で肉体を強化して待ち受ける。',
     isUnlocked: false
   }
 ];

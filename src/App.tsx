@@ -22,6 +22,8 @@ import { PartyFormationModal } from './components/PartyFormationModal.tsx';
 import { HashiraTrainingModal } from './components/HashiraTrainingModal.tsx';
 import { ZukanNotificationModal } from './components/ZukanNotificationModal.tsx';
 import { EndingScreen } from './components/EndingScreen.tsx';
+import { ClearProgressModal } from './components/ClearProgressModal.tsx';
+import { TwelveKizukiService, HiddenKizukiEncounter } from './domain/services/TwelveKizukiService.ts';
 import { DqFrame } from './components/DqFrame.tsx';
 import { FuriganaText } from './components/Ruby.tsx';
 import { PixelSprite } from './infrastructure/renderer/PixelSprite.tsx';
@@ -66,6 +68,21 @@ export default function App() {
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(() => {
     return savedData?.currentChapterIndex ?? 0;
   });
+
+  // Playthrough count & Clear milestones ("最終ステージクリアしたらいったんクリアにしてね。全ての仲間集めと上弦の鬼全種類倒したら完全クリアだよ。ストーリーで出て来ない12鬼月は2周目の各ステージに隠れているよ")
+  const [playthroughCount, setPlaythroughCount] = useState<number>(() => {
+    return savedData?.playthroughCount ?? 1;
+  });
+  const [hasClearedNormal, setHasClearedNormal] = useState<boolean>(() => {
+    return savedData?.hasClearedNormal ?? false;
+  });
+  const [hasClearedTrue, setHasClearedTrue] = useState<boolean>(() => {
+    return savedData?.hasClearedTrue ?? false;
+  });
+  const [defeatedDemonIds, setDefeatedDemonIds] = useState<Set<string>>(() => {
+    return new Set(savedData?.defeatedDemonIds ?? []);
+  });
+  const [isClearProgressModalOpen, setIsClearProgressModalOpen] = useState<boolean>(false);
 
   // Set of encountered characters (for Zukan hiding)
   const [encounteredIds, setEncounteredIds] = useState<Set<string>>(() => {
@@ -211,20 +228,30 @@ export default function App() {
 
   // Save current game state to localStorage
   const triggerSave = useCallback(() => {
-    SaveService.saveGame(currentChapterIndex, party, encounteredIds);
+    SaveService.saveGame(currentChapterIndex, party, encounteredIds, {
+      playthroughCount,
+      hasClearedNormal,
+      hasClearedTrue,
+      defeatedDemonIds: Array.from(defeatedDemonIds)
+    });
     setSaveStatus('saved');
     setTimeout(() => {
       setSaveStatus('idle');
     }, 2000);
-  }, [currentChapterIndex, party, encounteredIds]);
+  }, [currentChapterIndex, party, encounteredIds, playthroughCount, hasClearedNormal, hasClearedTrue, defeatedDemonIds]);
 
   // Auto-save whenever key progression or encounter state changes
   useEffect(() => {
     // Also ensure all party members in roster are marked as encountered
     const rosterIds = party.roster.map(m => m.id);
     registerEncounters(rosterIds);
-    SaveService.saveGame(currentChapterIndex, party, encounteredIds);
-  }, [currentChapterIndex, rosterVersion, encounteredIds, registerEncounters, party]);
+    SaveService.saveGame(currentChapterIndex, party, encounteredIds, {
+      playthroughCount,
+      hasClearedNormal,
+      hasClearedTrue,
+      defeatedDemonIds: Array.from(defeatedDemonIds)
+    });
+  }, [currentChapterIndex, rosterVersion, encounteredIds, registerEncounters, party, playthroughCount, hasClearedNormal, hasClearedTrue, defeatedDemonIds]);
 
   // Set of unlocked/recruited character IDs for Zukan
   const partyRosterIds = useMemo(() => {
@@ -390,12 +417,60 @@ export default function App() {
     setScreen('battle');
   };
 
+  // Handle Starting a 2nd Playthrough Hidden Twelve Kizuki Battle ("ストーリーで出て来ない12鬼月は2周目の各ステージに隠れているよ")
+  const handleStartHiddenKizukiBattle = (encounter: HiddenKizukiEncounter) => {
+    SoundEngine.playConfirm();
+    let enemy = catalog.find(c => c.id === encounter.demonId);
+    if (!enemy) {
+      enemy = catalog.find(c => c.name.includes(encounter.bossName)) || catalog.find(c => c.id.startsWith('demon_'));
+    }
+    if (enemy) {
+      registerEncounters([enemy.id]);
+      setCurrentBattle({
+        enemy: { ...enemy },
+        isBoss: true
+      });
+      setScreen('battle');
+    }
+  };
+
+  // Handle Starting 2nd Playthrough ("2周目の各ステージに隠れているよ")
+  const handleStartSecondPlaythrough = () => {
+    SoundEngine.playConfirm();
+    setPlaythroughCount(prev => Math.max(2, prev + 1));
+    setCurrentChapterIndex(0); // Reset chapter index to 0 so all stages can be explored with hidden Kizuki
+    setScreen('world');
+    triggerSave();
+  };
+
   // Handle Victory in Battle
   const handleBattleVictory = (
     expGained: number,
     moneyGained: number,
     leveledUp: { name: string; newLevel: number }[] = []
   ) => {
+    // Track defeated demon IDs for Upper Moon and 12 Kizuki completion
+    if (currentBattle?.enemy) {
+      const enemyId = currentBattle.enemy.id;
+      setDefeatedDemonIds(prev => {
+        const next = new Set(prev);
+        next.add(enemyId);
+        if (enemyId === 'demon_daki_gyutaro') {
+          next.add('demon_daki');
+          next.add('demon_gyutaro');
+        } else if (enemyId === 'demon_gyokko_hantengu') {
+          next.add('demon_gyokko');
+          next.add('demon_zohakuten');
+        } else if (enemyId === 'demon_enmu_akaza') {
+          next.add('demon_enmu');
+          next.add('demon_akaza');
+        } else if (enemyId === 'demon_muzan_final') {
+          next.add('demon_kokushibo');
+        }
+        return next;
+      });
+    }
+
     // Level-up Zukan unlock mechanic:
     // When characters reach level thresholds (e.g. Lv. 3, 5, 8, 10, 15, 20, etc.),
     // unlock corresponding demon or ally characters into the Zukan!
@@ -434,10 +509,18 @@ export default function App() {
 
       setRosterVersion(v => v + 1);
 
-      // Advance chapter
-      if (finishedChapterNum >= 9) {
-        // Defeated Demon Tanjiro in Chapter 9 (Final Hidden Stage)!
-        // Roll Dynamic Kizuna no Kiseki Ending Screen
+      // Advance chapter & check clearing milestones
+      // User request: "最終ステージクリアしたらいったんクリアにしてね。全ての仲間集めと上弦の鬼全種類倒したら完全クリアだよ。ストーリーで出て来ない12鬼月は2周目の各ステージに隠れているよ。"
+      if (finishedChapterNum >= 8) {
+        setHasClearedNormal(true);
+        const completeCheck = TwelveKizukiService.checkTrueCompleteClear(
+          party.roster,
+          catalog,
+          new Set([...defeatedDemonIds, currentBattle.enemy.id])
+        );
+        if (completeCheck.isTrueComplete) {
+          setHasClearedTrue(true);
+        }
         setScreen('ending');
         triggerSave();
         return;
@@ -664,14 +747,18 @@ export default function App() {
             party={party}
             catalog={catalog}
             currentChapterIndex={currentChapterIndex}
+            playthroughCount={playthroughCount}
+            defeatedDemonIds={defeatedDemonIds}
             onStartBossBattle={handleStartBossBattle}
             onStartRandomBattle={handleStartRandomBattle}
+            onStartHiddenKizukiBattle={handleStartHiddenKizukiBattle}
             onGoToInn={() => {
               setInnMessage(undefined);
               setScreen('inn');
             }}
             onOpenZukan={() => setScreen('zukan')}
             onOpenStoryMode={() => setScreen('story')}
+            onOpenClearProgress={() => setIsClearProgressModalOpen(true)}
             onResetGame={handleResetGame}
           />
         )}
@@ -713,17 +800,32 @@ export default function App() {
           />
         )}
 
-        {/* 6. ENDING SCREEN (Demon Tanjiro Defeated - Kizuna no Kiseki Fanfare) */}
+        {/* 6. ENDING SCREEN (Normal Clear & True Complete Clear) */}
         {screen === 'ending' && (
           <EndingScreen
             party={party}
             catalog={catalog}
             encounteredIds={encounteredIds}
+            defeatedDemonIds={defeatedDemonIds}
+            playthroughCount={playthroughCount}
             onOpenZukan={() => setScreen('zukan')}
             onContinueJourney={() => setScreen('world')}
+            onStartSecondPlaythrough={handleStartSecondPlaythrough}
           />
         )}
       </main>
+
+      {/* Clear Progress Modal ("全ての仲間集めと上弦の鬼全種類倒したら完全クリアだよ") */}
+      {isClearProgressModalOpen && (
+        <ClearProgressModal
+          roster={party.roster}
+          catalog={catalog}
+          defeatedDemonIds={defeatedDemonIds}
+          playthroughCount={playthroughCount}
+          hasClearedNormal={hasClearedNormal}
+          onClose={() => setIsClearProgressModalOpen(false)}
+        />
+      )}
 
       {/* 3-Question Recruitment Trial Modal ("カンタンに仲間呼び出しできすぎるので、3問選択肢だしてすべて一致したときだけ仲間になるように調整して。") */}
       {activeTrial && (

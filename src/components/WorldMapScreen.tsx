@@ -7,21 +7,26 @@ import React, { useState } from 'react';
 import { StoryChapter, Character } from '../domain/models/types.ts';
 import { STORY_CHAPTERS } from '../domain/services/StoryData.ts';
 import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
+import { TwelveKizukiService, HiddenKizukiEncounter } from '../domain/services/TwelveKizukiService.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { MapPin, Swords, Bed, BookOpen, ShieldAlert, Award, RotateCcw, Sparkles } from 'lucide-react';
+import { MapPin, Swords, Bed, BookOpen, ShieldAlert, Award, RotateCcw, Sparkles, Skull, CheckCircle2 } from 'lucide-react';
 
 interface WorldMapScreenProps {
   party: PartyAggregate;
   catalog: Character[];
   currentChapterIndex: number;
+  playthroughCount: number;
+  defeatedDemonIds: Set<string>;
   onStartBossBattle: (chapter: StoryChapter) => void;
   onStartRandomBattle: (enemy: Character) => void;
+  onStartHiddenKizukiBattle: (encounter: HiddenKizukiEncounter) => void;
   onGoToInn: () => void;
   onOpenZukan: () => void;
   onOpenStoryMode: () => void;
+  onOpenClearProgress: () => void;
   onResetGame?: () => void;
 }
 
@@ -29,16 +34,24 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
   party,
   catalog,
   currentChapterIndex,
+  playthroughCount,
+  defeatedDemonIds,
   onStartBossBattle,
   onStartRandomBattle,
+  onStartHiddenKizukiBattle,
   onGoToInn,
   onOpenZukan,
   onOpenStoryMode,
+  onOpenClearProgress,
   onResetGame
 }) => {
   const [selectedChapterIdx, setSelectedChapterIdx] = useState<number>(currentChapterIndex);
   const [selectedTrainingTier, setSelectedTrainingTier] = useState<'stage1' | 'stage2' | 'current'>('stage1');
   const chapter = STORY_CHAPTERS[selectedChapterIdx] || STORY_CHAPTERS[0];
+
+  // Check hidden Kizuki for selected chapter
+  const hiddenKizuki = TwelveKizukiService.getHiddenKizukiForChapter(chapter.chapterNumber);
+  const isHiddenKizukiDefeated = hiddenKizuki ? defeatedDemonIds.has(hiddenKizuki.demonId) : false;
 
   // Helper to start training / wild demon encounter with specific tier
   const triggerWildDemonEncounter = (tier: 'stage1' | 'stage2' | 'current' = selectedTrainingTier) => {
@@ -82,12 +95,30 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {playthroughCount >= 2 && (
+              <span className="px-2.5 py-1 bg-purple-950 text-purple-300 border border-purple-500 rounded text-xs font-bold flex items-center gap-1 shadow animate-pulse">
+                <Skull className="w-3.5 h-3.5 text-purple-400" />
+                <span>第{playthroughCount}周目（隠れ鬼出現中）</span>
+              </span>
+            )}
+
+            <button
+              onClick={() => {
+                SoundEngine.playConfirm();
+                onOpenClearProgress();
+              }}
+              className="px-3 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-amber-300 shadow touch-manipulation animate-pulse"
+            >
+              <Award className="w-3.5 h-3.5 text-yellow-300" />
+              <span><FuriganaText text="完全[かんぜん]クリア進捗[しんちょく]" /></span>
+            </button>
+
             <button
               onClick={() => {
                 SoundEngine.playConfirm();
                 onOpenStoryMode();
               }}
-              className="px-3 py-2 bg-purple-700 hover:bg-purple-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-purple-400 shadow animate-pulse touch-manipulation"
+              className="px-3 py-2 bg-purple-700 hover:bg-purple-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-purple-400 shadow touch-manipulation"
             >
               <BookOpen className="w-3.5 h-3.5 text-amber-300" />
               <span><FuriganaText text="原作[げんさく]ものがたり" /></span>
@@ -250,6 +281,79 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 </span>
               </button>
             </div>
+
+            {/* 2nd Playthrough Hidden Twelve Kizuki Encounter ("ストーリーで出て来ない12鬼月は2周目の各ステージに隠れているよ") */}
+            {hiddenKizuki && (
+              <div className={`rounded-lg p-3 border flex flex-col gap-2 shadow-md ${
+                playthroughCount >= 2
+                  ? isHiddenKizukiDefeated
+                    ? 'bg-emerald-950/40 border-emerald-500/70'
+                    : 'bg-purple-950/80 border-purple-500 ring-1 ring-purple-400/50 animate-pulse'
+                  : 'bg-slate-950/70 border-slate-800'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                    <Skull className={`w-4 h-4 ${playthroughCount >= 2 ? 'text-purple-400' : 'text-slate-500'}`} />
+                    <span>
+                      <FuriganaText text={playthroughCount >= 2 ? "【2周[しゅう]目[め]限定[げんてい]・隠[かく]れ十二[じゅうに]鬼[き]月[づき]の気配[けはい]！】" : "【隠[かく]れ十二[じゅうに]鬼[き]月[づき]の伝説[でんせつ]】"} />
+                    </span>
+                  </span>
+
+                  {playthroughCount >= 2 ? (
+                    isHiddenKizukiDefeated ? (
+                      <span className="text-[10px] bg-emerald-700 text-white px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>討伐済</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-rose-700 text-white px-2 py-0.5 rounded font-bold animate-pulse">
+                        潜伏中 ⚠️
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">
+                      2周目解放
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-xs text-slate-200">
+                  <div className="font-bold text-amber-200 text-xs sm:text-sm">
+                    {hiddenKizuki.bossName}{' '}
+                    <span className="text-xs text-purple-300 font-normal">
+                      ({hiddenKizuki.rankTitle} / 推奨Lv.{hiddenKizuki.recommendedLevel})
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-300 mt-0.5">
+                    <FuriganaText text={`隠[かく]れ場所[ばしょ]: ${hiddenKizuki.hiddenSpotName}`} />
+                  </div>
+                  <div className="text-[10px] text-purple-200/90 italic mt-0.5 bg-slate-900/60 p-1.5 rounded border border-purple-900/50">
+                    「{hiddenKizuki.hint}」
+                  </div>
+                </div>
+
+                {playthroughCount >= 2 ? (
+                  <button
+                    onClick={() => {
+                      SoundEngine.playConfirm();
+                      onStartHiddenKizukiBattle(hiddenKizuki);
+                    }}
+                    className="w-full py-2.5 px-3 bg-gradient-to-r from-purple-700 via-indigo-700 to-rose-700 hover:from-purple-600 hover:to-rose-600 rounded text-xs font-bold text-white border border-purple-300 flex items-center justify-center gap-2 shadow-md touch-manipulation active:scale-98"
+                  >
+                    <Swords className="w-4 h-4 text-yellow-300" />
+                    <span>
+                      {isHiddenKizukiDefeated
+                        ? `${hiddenKizuki.bossName} に再挑戦する`
+                        : `隠れ十二鬼月: ${hiddenKizuki.bossName} に挑む！`}
+                    </span>
+                  </button>
+                ) : (
+                  <div className="text-[10px] text-slate-400 text-center py-1 bg-slate-900/50 rounded border border-slate-800">
+                    ※ 最終ステージをクリアしていったんクリア後、2周目を開始するとここで戦えます！
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Level-Up Training Section ("弱いステージの鬼をレベル上げに出してね") */}
             <div className="bg-slate-950/70 border border-amber-500/40 rounded p-2.5 flex flex-col gap-2">

@@ -15,6 +15,10 @@ export interface SaveData {
   activeMemberIds: string[];
   inventory: Item[];
   encounteredCharacterIds: string[];
+  playthroughCount?: number;
+  hasClearedNormal?: boolean;
+  hasClearedTrue?: boolean;
+  defeatedDemonIds?: string[];
 }
 
 const SAVE_KEY = 'kimetsu_quest_save_v2';
@@ -26,7 +30,13 @@ export class SaveService {
   public static saveGame(
     currentChapterIndex: number,
     party: PartyAggregate,
-    encounteredIds: Set<string> | string[]
+    encounteredIds: Set<string> | string[],
+    extraData?: {
+      playthroughCount?: number;
+      hasClearedNormal?: boolean;
+      hasClearedTrue?: boolean;
+      defeatedDemonIds?: Set<string> | string[];
+    }
   ): boolean {
     try {
       if (typeof window === 'undefined' || !window.localStorage) {
@@ -34,6 +44,9 @@ export class SaveService {
       }
 
       const encounteredArray = Array.from(encounteredIds);
+      const defeatedArray = extraData?.defeatedDemonIds
+        ? Array.from(extraData.defeatedDemonIds)
+        : [];
 
       const data: SaveData = {
         version: 2,
@@ -44,6 +57,10 @@ export class SaveService {
         activeMemberIds: party.activeMembers.map(m => m.id),
         inventory: party.inventory,
         encounteredCharacterIds: encounteredArray,
+        playthroughCount: extraData?.playthroughCount ?? 1,
+        hasClearedNormal: extraData?.hasClearedNormal ?? false,
+        hasClearedTrue: extraData?.hasClearedTrue ?? false,
+        defeatedDemonIds: defeatedArray
       };
 
       window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
