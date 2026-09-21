@@ -1,0 +1,168 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Character, Item } from '../models/types.ts';
+
+export class PartyAggregate {
+  public activeMembers: Character[] = [];
+  public roster: Character[] = [];
+  public money: number = 200;
+  public inventory: Item[] = [
+    { id: 'item_herb', name: '傷薬（薬草）', description: 'HPを50回復する。', cost: 30, type: 'heal_hp', value: 50, count: 5 },
+    { id: 'item_riceball', name: '特製おにぎり', description: '呼吸力（BP）を25回復する。', cost: 40, type: 'heal_bp', value: 25, count: 3 },
+    { id: 'item_wisteria_water', name: '藤の花の霊水', description: '戦闘不能の味方をHP半分で蘇生する。', cost: 150, type: 'revive', value: 50, count: 1 },
+  ];
+
+  constructor(leadHero: Character) {
+    this.activeMembers = [leadHero];
+    this.roster = [leadHero];
+  }
+
+  public restoreFromData(
+    roster: Character[],
+    activeMemberIds: string[],
+    money: number,
+    inventory: Item[]
+  ): void {
+    if (roster && roster.length > 0) {
+      this.roster = roster;
+    }
+    if (activeMemberIds && activeMemberIds.length > 0) {
+      const restoredActive = activeMemberIds
+        .map(id => this.roster.find(m => m.id === id))
+        .filter((m): m is Character => !!m);
+      if (restoredActive.length > 0) {
+        this.activeMembers = restoredActive;
+      }
+    }
+    if (typeof money === 'number') {
+      this.money = money;
+    }
+    if (inventory && inventory.length > 0) {
+      this.inventory = inventory;
+    }
+  }
+
+  public isAllDead(): boolean {
+    return this.activeMembers.length > 0 && this.activeMembers.every(m => m.stats.hp <= 0);
+  }
+
+  public hasMember(nameOrId: string): boolean {
+    return this.roster.some(m => m.id === nameOrId || m.name === nameOrId);
+  }
+
+  public recruitMember(candidate: Character): boolean {
+    if (this.hasMember(candidate.id) || this.hasMember(candidate.name)) {
+      return false;
+    }
+    candidate.isUnlocked = true;
+    this.roster.push(candidate);
+
+    // If active party has less than 4, auto add
+    if (this.activeMembers.length < 4) {
+      this.activeMembers.push(candidate);
+    }
+    return true;
+  }
+
+  public setPartySlot(slotIndex: number, characterId: string): boolean {
+    if (slotIndex < 0 || slotIndex >= 4) return false;
+    const target = this.roster.find(m => m.id === characterId);
+    if (!target) return false;
+
+    // Remove if already in active in another slot
+    const existingIndex = this.activeMembers.findIndex(m => m.id === characterId);
+    if (existingIndex >= 0) {
+      const temp = this.activeMembers[slotIndex];
+      this.activeMembers[slotIndex] = this.activeMembers[existingIndex];
+      if (temp) {
+        this.activeMembers[existingIndex] = temp;
+      }
+      return true;
+    }
+
+    if (slotIndex < this.activeMembers.length) {
+      this.activeMembers[slotIndex] = target;
+    } else {
+      this.activeMembers.push(target);
+    }
+    return true;
+  }
+
+  public addExpAndMoney(exp: number, gold: number): { leveledUp: { name: string; newLevel: number }[] } {
+    this.money += gold;
+    const leveledUp: { name: string; newLevel: number }[] = [];
+
+    for (const member of this.activeMembers) {
+      if (member.stats.hp <= 0) continue; // collapsed characters don't gain exp unless revived
+      member.exp += exp;
+
+      while (member.exp >= member.nextExp) {
+        member.exp -= member.nextExp;
+        member.level += 1;
+        member.nextExp = Math.round(member.nextExp * 1.35) + 15;
+
+        // Stat growth
+        const hpUp = 12 + Math.floor(Math.random() * 8);
+        const bpUp = 5 + Math.floor(Math.random() * 4);
+        const atkUp = 3 + Math.floor(Math.random() * 3);
+        const defUp = 2 + Math.floor(Math.random() * 2);
+
+        member.stats.maxHp += hpUp;
+        member.stats.hp = member.stats.maxHp; // full restore on level up
+        member.stats.maxBp += bpUp;
+        member.stats.bp = member.stats.maxBp;
+        member.stats.attack += atkUp;
+        member.stats.defense += defUp;
+        member.stats.speed += 1;
+
+        leveledUp.push({ name: member.name, newLevel: member.level });
+      }
+    }
+
+    return { leveledUp };
+  }
+
+  public useItem(itemId: string, targetIndex: number): { success: boolean; message: string } {
+    const item = this.inventory.find(i => i.id === itemId);
+    if (!item || item.count <= 0) {
+      return { success: false, message: 'その道具は持っていません。' };
+    }
+
+    const target = this.activeMembers[targetIndex];
+    if (!target) {
+      return { success: false, message: '対象が存在しません。' };
+    }
+
+    if (item.type === 'heal_hp') {
+      if (target.stats.hp <= 0) {
+        return { success: false, message: `${target.name}は力尽きていて傷薬を受け付けない！` };
+      }
+      target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + item.value);
+      item.count--;
+      return { success: true, message: `${target.name}の傷が癒え、HPが${item.value}回復した！` };
+    }
+
+    if (item.type === 'heal_bp') {
+      if (target.stats.hp <= 0) {
+        return { success: false, message: `${target.name}は倒れている！` };
+      }
+      target.stats.bp = Math.min(target.stats.maxBp, target.stats.bp + item.value);
+      item.count--;
+      return { success: true, message: `${target.name}は全集中の呼吸を整え、BPが${item.value}回復した！` };
+    }
+
+    if (item.type === 'revive') {
+      if (target.stats.hp > 0) {
+        return { success: false, message: `${target.name}はまだ戦える！` };
+      }
+      target.stats.hp = Math.round(target.stats.maxHp * (item.value / 100));
+      item.count--;
+      return { success: true, message: `藤の花の霊水が奇跡を起こし、${target.name}は息を吹き返した！` };
+    }
+
+    return { success: false, message: '使用できません。' };
+  }
+}

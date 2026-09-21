@@ -1,0 +1,6 @@
+{
+  "name": "鬼滅の刃クエスト 〜鬼殺隊列伝〜",
+  "description": "ドラクエ風コマンドバトルRPG。鬼殺隊を結成し、全300種類の高精細ドット絵キャラクターと100体の雑魚鬼、原作ストーリーモードの選択肢を追体験して鬼舞辻無惨を討伐せよ！スマホ指1本操作対応。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

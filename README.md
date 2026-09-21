@@ -1,11 +1,71 @@
-<div align="center">
+# 鬼滅の刃クエスト 〜鬼殺隊列伝〜 (Demon Slayer Quest)
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+鬼滅の刃の世界を舞台にした、ファミコン・ドラクエ風の本格レトロRPG。
+全300種の鬼殺隊士・鬼・雑魚鬼を収録し、指1本でサクサク遊べるスマートフォン・PC両対応のWebアプリケーションです。
 
-  <h1>Built with AI Studio</h2>
+---
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 🚀 GitHub Pages (github.io) へのデプロイ方法
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+本プロジェクトは `github.io` （GitHub Pages）への公開に完全対応しています。
+以下の **方法A（推奨：GitHub Actionsによる自動デプロイ）** または **方法B（CLI手動デプロイ）** のいずれかで簡単に公開できます。
 
-</div>
+---
+
+### 方法A: GitHub Actions で自動公開（おすすめ）
+
+リポジトリに push するだけで、自動でビルド＆デプロイされます。
+
+1. **GitHubリポジトリの設定を開く**
+   - GitHubの対象リポジトリ画面で、上部メニューの **Settings** をクリック。
+2. **Pagesの設定を変更**
+   - 左側サイドバーの **Pages** をクリック。
+   - **Build and deployment** の **Source** を `Deploy from a branch` から **`GitHub Actions`** に切り替えます。
+3. **コードをプッシュ**
+   - `main` または `master` ブランチにプッシュすると、`.github/workflows/deploy.yml` が自動起動し、数分で `https://<あなたのユーザー名>.github.io/<リポジトリ名>/` に公開されます！
+
+---
+
+### 方法B: コマンドライン（npm run deploy）で手動公開
+
+1. リポジトリを clone して依存関係をインストール：
+   ```bash
+   npm install
+   ```
+
+2. 以下のコマンドを実行するだけで、ビルドから `gh-pages` ブランチへのプッシュまで一括で完了します：
+   ```bash
+   npm run deploy
+   ```
+
+3. GitHub の **Settings** > **Pages** で、**Source** が `Deploy from a branch`、ブランチが `gh-pages` / `(root)` になっていることを確認してください。
+
+---
+
+## 🛠️ ローカルでの開発・実行
+
+```bash
+# 依存パッケージのインストール
+npm install
+
+# 開発サーバー起動（ポート3000）
+npm run dev
+
+# プロダクションビルド検証
+npm run build
+```
+
+---
+
+## 📝 主な機能・特徴
+
+- **全300種キャラクター・大図鑑**:
+  - 竈門炭治郎、禰豆子、善逸、伊之助をはじめ、柱9名、上弦・下弦の鬼、手鬼・身体部位鬼・虫鬼などの雑魚鬼100体を収録。
+- **全ルビ（ふりがな）表示**:
+  - お子様でも楽しく読めるよう、漢字の上にルビ（`<ruby>`）を実装。
+- **原作ストーリーモード & 3問入隊試練**:
+  - 炭治郎の旅立ちから無限城・最終決戦まで全8章。仲間の勧誘時には原作にまつわる3問クイズに正解して正式加入。
+- **ワンタップ簡単戦闘**:
+  - 「全員で突撃」ボタンによる指1本での快適バトル、呼吸技、回復、逃走。
+- **修業場**:
+  - 序盤の育成を支える藤襲山（Lv.1〜3）や浅草街（Lv.4〜7）のレベル上げダンジョン常設。
