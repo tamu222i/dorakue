@@ -19,6 +19,30 @@ export interface CharacterTrial {
   failMessage: string;
 }
 
+/**
+ * 選択肢の配列と正解インデックスをランダムにシャッフルして、
+ * 正解の位置（A, B, C）が均等に分散するようにするヘルパー関数
+ */
+export function shuffleQuestionOptions(q: TrialQuestion): TrialQuestion {
+  const indices = [0, 1, 2];
+  // Fisher-Yates shuffle
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = indices[i];
+    indices[i] = indices[j];
+    indices[j] = temp;
+  }
+
+  const shuffledOptions = indices.map(idx => q.options[idx]);
+  const newMatchingIndex = indices.indexOf(q.matchingIndex);
+
+  return {
+    ...q,
+    options: shuffledOptions,
+    matchingIndex: newMatchingIndex
+  };
+}
+
 export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
   char_zenitsu: {
     characterId: 'char_zenitsu',
@@ -28,31 +52,31 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
       {
         question: '第[だい]1問[もん]：善[ぜん]逸[いつ]が 怖[こわ]くて 震[ふる]えているとき、どう 声[こえ]をかける？',
         options: [
-          '「大[だい]丈[じょう]夫[ぶ]！俺[おれ]が 一緒[いっしょ]にいるから 前[まえ]へ進[すす]もう！」',
           '「いつまでも 泣[な]いてないで、さっさと 一人[ひとり]で 戦[たたか]え！」',
+          '「大[だい]丈[じょう]夫[ぶ]！俺[おれ]が 一緒[いっしょ]にいるから 前[まえ]へ進[すす]もう！」',
           '「怖[こわ]がりは 邪[じゃ]魔[ま]だから 置[お]いていくぞ！」'
         ],
-        matchingIndex: 0,
+        matchingIndex: 1, // B
         explanation: '炭治郎のように優しく寄り添う言葉に、善逸の心が少し落ち着いた！'
       },
       {
         question: '第[だい]2問[もん]：善[ぜん]逸[いつ]が 命[いのち]懸[が]けで 守[まも]り抜[ぬ]いた「禰[ね]豆[ず]子[こ]の木[き]箱[ばこ]」、どうする？',
         options: [
           '重[おも]いから その辺[へん]に 捨[す]ててしまう',
-          '「命[いのち]より 大切[たいせつ]なものを 守[まも]ってくれて ありがとう！」と 感[かん]謝[しゃ]する',
-          '箱[ばこ]を 蹴[け]っ飛[と]ばして 壊[こわ]してみる'
+          '箱[ばこ]を 蹴[け]っ飛[と]ばして 壊[こわ]してみる',
+          '「命[いのち]より 大切[たいせつ]なものを 守[まも]ってくれて ありがとう！」と 感[かん]謝[しゃ]する'
         ],
-        matchingIndex: 1,
+        matchingIndex: 2, // C
         explanation: '善逸「炭治郎…！信じてくれていたんだね…！」と大号泣！'
       },
       {
         question: '第[だい]3問[もん]：善[ぜん]逸[いつ]が 極[きわ]めた 雷[かみなり]の呼[こ]吸[きゅう]の型[かた]は 何[なん]の型[かた]？',
         options: [
-          '壱[いち]ノ型[かた]・霹[へき]靂[れき]一[いっ]閃[せん]（へきれきいっせん）',
           '拾[じゅう]ノ型[かた]・居[い]眠[ねむ]りパンチ',
+          '壱[いち]ノ型[かた]・霹[へき]靂[れき]一[いっ]閃[せん]（へきれきいっせん）',
           '弐[に]ノ型[かた]・逃[に]げ足[あし]ダッシュ'
         ],
-        matchingIndex: 0,
+        matchingIndex: 1, // B
         explanation: '善逸「一つしか使えないけど、誰よりも強靭な刃になれって爺ちゃんが言ってたんだ！」'
       }
     ],
@@ -68,11 +92,11 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
       {
         question: '第[だい]1問[もん]：自[じ]分[ぶん]の 意[い]志[し]で 決[き]められない カナヲに、炭[たん]治[じ]郎[ろう]は 何[なん]と言[い]った？',
         options: [
-          '「表[おもて]が出[で]たら、カナヲは 心[こころ]の 声[こえ]を 聞[き]く！」',
           '「決[き]められないなら、一生[いっしょう] コインだけ 投[な]げていなさい」',
-          '「誰[だれ]かの 言[い]うことだけ 聞[き]いていればいいよ」'
+          '「誰[だれ]かの 言[い]うことだけ 聞[き]いていればいいよ」',
+          '「表[おもて]が出[で]たら、カナヲは 心[こころ]の 声[こえ]を 聞[き]く！」'
         ],
-        matchingIndex: 0,
+        matchingIndex: 2, // C
         explanation: 'カナヲの瞳がハッとして大きく見開かれた！'
       },
       {
@@ -82,7 +106,7 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           '胡[こ]蝶[ちょう]（チョウチョ）',
           'コウモリ'
         ],
-        matchingIndex: 1,
+        matchingIndex: 1, // B
         explanation: 'カナエとしのぶから受け継いだ大切な蝶の髪飾りを優しく撫でた。'
       },
       {
@@ -92,7 +116,7 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           '泥[どろ]の呼[こ]吸[きゅう]',
           '鉄[てつ]の呼[こ]吸[きゅう]'
         ],
-        matchingIndex: 0,
+        matchingIndex: 0, // A
         explanation: '澄み渡る視力と花の呼吸で、カナヲが微笑んだ！'
       }
     ],
@@ -112,7 +136,7 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           'ほわほわして 暖[あたた]かい 気[き]持[も]ちになった',
           '大[おお]怒[いか]りして 投[な]げ捨[す]てた'
         ],
-        matchingIndex: 1,
+        matchingIndex: 1, // B
         explanation: '伊之助の頭のまわりに「ほわほわ」が浮かび上がった！'
       },
       {
@@ -122,17 +146,17 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           'ピカピカに 磨[みが]かれた 鏡[かがみ]のような刀',
           'ピンク色[いろ]の リボンが ついている刀'
         ],
-        matchingIndex: 0,
+        matchingIndex: 0, // A
         explanation: '伊之助「カッカッカ！引き裂くような切れ味が最高なんだよ！」'
       },
       {
         question: '第[だい]3問[もん]：伊[い]之[の]助[すけ]が 編[あ]み出[だ]した 呼[こ]吸[きゅう]は？',
         options: [
           '豚[ぶた]の呼[こ]吸[きゅう]',
-          '獣[けだもの]の呼[こ]吸[きゅう]',
-          '鳥[とり]の呼[こ]吸[きゅう]'
+          '鳥[とり]の呼[こ]吸[きゅう]',
+          '獣[けだもの]の呼[こ]吸[きゅう]'
         ],
-        matchingIndex: 1,
+        matchingIndex: 2, // C
         explanation: '山育ちの研ぎ澄まされた触覚が、あなたを親分と認めた！'
       }
     ],
@@ -148,21 +172,21 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
       {
         question: '第[だい]1問[もん]：雪[ゆき]山[やま]で 炭[たん]治[じ]郎[ろう]に 義[ぎ]勇[ゆう]が 叫[さけ]んだ 名[めい]言[げん]は？',
         options: [
+          '「寒[さむ]いから 帰[かえ]って こたつに 入[はい]ろう」',
           '「生[せい]殺[さつ]与[よ]奪[だつ]の権[けん]を 他[た]人[にん]に 握[にぎ]らせるな！」',
-          '「お前[まえ]の 鮭[さけ]大[だい]根[こん]を 俺[おれ]に くれ！」',
-          '「寒[さむ]いから 帰[かえ]って こたつに 入[はい]ろう」'
+          '「お前[まえ]の 鮭[さけ]大[だい]根[こん]を 俺[おれ]に くれ！」'
         ],
-        matchingIndex: 0,
+        matchingIndex: 1, // B
         explanation: '厳しい言葉の裏にある深い慈悲と信念が胸に刺さる！'
       },
       {
         question: '第[だい]2問[もん]：義[ぎ]勇[ゆう]の 大[だい]好[す]きな 食[た]べ物[もの]は？',
         options: [
-          '鮭[さけ]大[だい]根[こん]（さけだいこん）',
           'チョコレートパフェ',
-          '激[げき]辛[から]カレー'
+          '激[げき]辛[から]カレー',
+          '鮭[さけ]大[だい]根[こん]（さけだいこん）'
         ],
-        matchingIndex: 0,
+        matchingIndex: 2, // C
         explanation: '義勇の口元がほんのわずかに緩んだ…！'
       },
       {
@@ -172,7 +196,7 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           '嵐[あらし]',
           '津[つ]波[なみ]'
         ],
-        matchingIndex: 0,
+        matchingIndex: 0, // A
         explanation: '静寂がすべてを包み込み、義勇が深く頷いた！'
       }
     ],
@@ -188,21 +212,21 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
       {
         question: '第[だい]1問[もん]：しのぶは 腕[うで]力[りょく]で 首[くび]が 斬[き]れない代[か]わりに、何[なに]で 鬼[おに]を 倒[たお]す？',
         options: [
-          '藤[ふじ]の花[はな]の 毒[どく]',
           'くすぐりの 刑[けい]',
+          '藤[ふじ]の花[はな]の 毒[どく]',
           '大[おお]きな 声[こえ]'
         ],
-        matchingIndex: 0,
+        matchingIndex: 1, // B
         explanation: 'しのぶ「その通りです。鬼を殺せる毒を調合しています」'
       },
       {
         question: '第[だい]2問[もん]：しのぶが 管理[かんり]する、怪[け]我[が]した 隊[たい]士[し]を 治[なお]す 施[し]設[せつ]は？',
         options: [
-          '蝶[ちょう]屋[や]敷[しき]（ちょうやしき）',
           '遊[ゆう]園[えん]地[ち]',
-          'おばけ屋[や]敷[しき]'
+          'おばけ屋[や]敷[しき]',
+          '蝶[ちょう]屋[や]敷[しき]（ちょうやしき）'
         ],
-        matchingIndex: 0,
+        matchingIndex: 2, // C
         explanation: 'アオイやきよ、すみ、なほ達の優しい笑顔が浮かぶ！'
       },
       {
@@ -212,7 +236,7 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           '鳥[とり]の呼[こ]吸[きゅう]',
           '猫[ねこ]の呼[こ]吸[きゅう]'
         ],
-        matchingIndex: 0,
+        matchingIndex: 0, // A
         explanation: '蝶のように軽やかに舞い、優雅に微笑んだ！'
       }
     ],
@@ -228,11 +252,11 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
       {
         question: '第[だい]1問[もん]：煉[れん]獄[ごく]さんが 無[む]限[げん]列[れっ]車[しゃ]で 牛[ぎゅう]鍋[なべ]弁[べん]当[とう]を 食[た]べたときの 叫[さけ]びは？',
         options: [
-          '「うまい！うまい！うまい！」',
           '「まずい！やりなおし！」',
-          '「冷[つめ]たいから 温[あたた]めてくれ！」'
+          '「冷[つめ]たいから 温[あたた]めてくれ！」',
+          '「うまい！うまい！うまい！」'
         ],
-        matchingIndex: 0,
+        matchingIndex: 2, // C
         explanation: '煉獄「うむ！弁当の味を噛み締めてこそ力が出るのだ！」'
       },
       {
@@ -242,17 +266,17 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           'お金[かね]を たくさん 稼[かせ]ぐこと',
           '鬼[おに]になって 不[ふ]老[ろう]不[ふ]死[し]になること'
         ],
-        matchingIndex: 0,
+        matchingIndex: 0, // A
         explanation: '誇り高き炎の魂が、あなたの言葉に呼応して燃え盛る！'
       },
       {
         question: '第[だい]3問[もん]：炭[たん]治[じ]郎[ろう]たちに 遺[のこ]した 魂[たましい]の言[こと]葉[ば]は？',
         options: [
-          '「心[こころ]を 燃[も]やせ！！」',
           '「あきらめて 逃[に]げ出[だ]せ！」',
+          '「心[こころ]を 燃[も]やせ！！」',
           '「寝[ね]て 忘[わす]れろ！」'
         ],
-        matchingIndex: 0,
+        matchingIndex: 1, // B
         explanation: 'カッと目を見開き、太陽のような笑顔を向けた！'
       }
     ],
@@ -268,21 +292,21 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
       {
         question: '第[だい]1問[もん]：玄[げん]弥[や]の 兄[あに]貴[き]は 誰[だれ]？',
         options: [
-          '風[かぜ]柱[ばしら]・不[ふ]死[し]川[がわ]実[さね]弥[み]',
           '水[みず]柱[ばしら]・冨[とみ]岡[おか]義[ぎ]勇[ゆう]',
+          '風[かぜ]柱[ばしら]・不[ふ]死[し]川[がわ]実[さね]弥[み]',
           '鋼[はがね]鐵[づか]塚[ほたる]'
         ],
-        matchingIndex: 0,
+        matchingIndex: 1, // B
         explanation: '玄弥「…兄貴に認めてもらいたい、それだけなんだ…」'
       },
       {
         question: '第[だい]2問[もん]：呼[こ]吸[きゅう]が 使[つか]えない 玄[げん]弥[や]が 戦[たたか]う 特[とく]異[い]体[たい]質[しつ]は？',
         options: [
-          '鬼[おに]を 食[く]らって 鬼[おに]の力[ちから]を 得[え]る「鬼[おに]喰[ぐ]い」',
           '何[なん]でも 吸[す]い込[こ]む 胃[い]袋[ぶくろ]',
-          '壁[かべ]を すり抜[ぬ]ける 体[からだ]'
+          '壁[かべ]を すり抜[ぬ]ける 体[からだ]',
+          '鬼[おに]を 食[く]らって 鬼[おに]の力[ちから]を 得[え]る「鬼[おに]喰[ぐ]い」'
         ],
-        matchingIndex: 0,
+        matchingIndex: 2, // C
         explanation: '銃と日輪刀を構え、覚悟を固めた！'
       },
       {
@@ -292,7 +316,7 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           '大[おお]笑[わら]いする',
           '歌[うた]を 歌[うた]い出[だ]す'
         ],
-        matchingIndex: 0,
+        matchingIndex: 0, // A
         explanation: '玄弥「う、うるせえ！言うなバカ野郎！」と真っ赤になった！'
       }
     ],
@@ -308,21 +332,21 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
       {
         question: '第[だい]1問[もん]：珠[たま]世[よ]様[さま]の 夢[ゆめ]は？',
         options: [
-          '鬼[おに]を 人[ひと]間[げん]に 戻[もど]す 薬[くすり]を 完[かん]成[せい]させること',
           '世[せ]界[かい]中[じゅう]の お金[かね]を 集[あつ]めること',
+          '鬼[おに]を 人[ひと]間[げん]に 戻[もど]す 薬[くすり]を 完[かん]成[せい]させること',
           '無[む]惨[ざん]の 手[て]下[した]になること'
         ],
-        matchingIndex: 0,
+        matchingIndex: 1, // B
         explanation: '禰豆子をはじめ、苦しむすべての鬼を救う慈愛に満ちた目標！'
       },
       {
         question: '第[だい]2問[もん]：珠[たま]世[よ]様[さま]の 助[じょ]手[しゅ]の 少[しょう]年[ねん]は？',
         options: [
-          '愈[ゆ]史[し]郎[ろう]',
           '善[ぜん]逸[いつ]',
-          '手[て]鬼[おに]'
+          '手[て]鬼[おに]',
+          '愈[ゆ]史[し]郎[ろう]'
         ],
-        matchingIndex: 0,
+        matchingIndex: 2, // C
         explanation: '愈史郎「珠世様を困らせるな！」と横から睨んでいる！'
       },
       {
@@ -332,7 +356,7 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
           '大[おお]きな 石[いし]',
           '爆[ばく]発[はつ]する 矢[や]印[じるし]'
         ],
-        matchingIndex: 0,
+        matchingIndex: 0, // A
         explanation: '美しい幻惑の術式が優しく花開く！'
       }
     ],
@@ -343,14 +367,22 @@ export const CHARACTER_TRIALS: Record<string, CharacterTrial> = {
 
 /**
  * 固有の試練が未定義の隊士にも、6歳向けの3問選択肢を生成するジェネレータ
+ * 正解の位置（matchingIndex）をA(0), B(1), C(2)にそれぞれ均等配置
  */
 export function getOrCreateTrial(characterId: string, characterName: string, role: string, breathStyle: string): CharacterTrial {
   if (CHARACTER_TRIALS[characterId]) {
-    return CHARACTER_TRIALS[characterId];
+    const base = CHARACTER_TRIALS[characterId];
+    return {
+      ...base,
+      questions: [
+        shuffleQuestionOptions(base.questions[0]),
+        shuffleQuestionOptions(base.questions[1]),
+        shuffleQuestionOptions(base.questions[2])
+      ]
+    };
   }
 
   // Generate dynamic 3-question trial based on breath style and demon slayer values
-  const isDemon = role === 'demon';
   const breathLabel = breathStyle === 'water' ? '水[みず]'
     : breathStyle === 'flame' ? '炎[ほのお]'
     : breathStyle === 'thunder' ? '雷[かみなり]'
@@ -362,41 +394,47 @@ export function getOrCreateTrial(characterId: string, characterName: string, rol
     : breathStyle === 'sound' ? '音[おと]'
     : '全[ぜん]集[しゅう]中[ちゅう]';
 
+  const rawQuestions: [TrialQuestion, TrialQuestion, TrialQuestion] = [
+    {
+      question: `第[だい]1問[もん]：鬼[おに]殺[さつ]隊[たい]の 隊[たい]士[し]が 一[いち]番[ばん] 大[たい]切[せつ]にすべき 心[こころ]は？`,
+      options: [
+        '自[じ]分[ぶん]だけ 助[たす]かればいいという「逃[に]げの心[こころ]」',
+        '弱[よわ]き人[ひと]を 守[まも]り、仲間[なかま]を 信[しん]じる「不[ふ]屈[くつ]の心[こころ]」',
+        '他[た]人[にん]を 傷[きず]つけて 笑[わら]う「悪[わる]い心[こころ]」'
+      ],
+      matchingIndex: 1, // B
+      explanation: '炭治郎が貫く強い信念に、相手が深く頷いた！'
+    },
+    {
+      question: `第[だい]2問[もん]：戦[たたか]いで 力[ちから]を 最[さい]大[だい]限[げん]に 引[ひ]き出[だ]す 技[わざ]は？`,
+      options: [
+        '目[め]を つぶって 暴[あば]れる',
+        'お腹[なか]を すかせて 泣[な]く',
+        `${breathLabel}の 呼[こ]吸[きゅう]・全[ぜん]集[しゅう]中[ちゅう]・常[じょう]中[ちゅう]`
+      ],
+      matchingIndex: 2, // C
+      explanation: '肺を大きく広げ、血液の循環を高めて呼吸を研ぎ澄ませた！'
+    },
+    {
+      question: `第[だい]3問[もん]：強[つよ]い 敵[てき]が 現[あらわ]れたとき、どう 行[こう]動[どう]する？`,
+      options: [
+        '仲間[なかま]と 力[ちから]を 合[あ]わせて 諦[あき]らめずに 立[た]ち向[む]かう！',
+        '仲間[なかま]を 置[お]いて 逃[に]げ出[だ]す',
+        '敵[てき]に 命[いのち]乞[ご]いをする'
+      ],
+      matchingIndex: 0, // A
+      explanation: '燃え上がる闘志と絆が完全に一致した！'
+    }
+  ];
+
   return {
     characterId,
     characterName,
     dialogueIntro: `「私[わたし]を 呼[よ]び出[だ]すとは… お前[まえ]の 覚[かく]悟[ご]、試[ため]させてもらうぞ！」`,
     questions: [
-      {
-        question: `第[だい]1問[もん]：鬼[おに]殺[さつ]隊[たい]の 隊[たい]士[し]が 一[いち]番[ばん] 大[たい]切[せつ]にすべき 心[こころ]は？`,
-        options: [
-          '弱[よわ]き人[ひと]を 守[まも]り、仲間[なかま]を 信[しん]じる「不[ふ]屈[くつ]の心[こころ]」',
-          '自[じ]分[ぶん]だけ 助[たす]かればいいという「逃[に]げの心[こころ]」',
-          '他[た]人[にん]を 傷[きず]つけて 笑[わら]う「悪[わる]い心[こころ]」'
-        ],
-        matchingIndex: 0,
-        explanation: '炭治郎が貫く強い信念に、相手が深く頷いた！'
-      },
-      {
-        question: `第[だい]2問[もん]：戦[たたか]いで 力[ちから]を 最[さい]大[だい]限[げん]に 引[ひ]き出[だ]す 技[わざ]は？`,
-        options: [
-          `${breathLabel}の 呼[こ]吸[きゅう]・全[ぜん]集[しゅう]中[ちゅう]・常[じょう]中[ちゅう]`,
-          '目[め]を つぶって 暴[あば]れる',
-          'お腹[なか]を すかせて 泣[な]く'
-        ],
-        matchingIndex: 0,
-        explanation: '肺を大きく広げ、血液の循環を高めて呼吸を研ぎ澄ませた！'
-      },
-      {
-        question: `第[だい]3問[もん]：強[つよ]い 敵[てき]が 現[あらわ]れたとき、どう 行[こう]動[どう]する？`,
-        options: [
-          '仲間[なかま]と 力[ちから]を 合[あ]わせて 諦[あき]らめずに 立[た]ち向[む]かう！',
-          '仲間[なかま]を 置[お]いて 逃[に]げ出[だ]す',
-          '敵[てき]に 命[いのち]乞[ご]いをする'
-        ],
-        matchingIndex: 0,
-        explanation: '燃え上がる闘志と絆が完全に一致した！'
-      }
+      shuffleQuestionOptions(rawQuestions[0]),
+      shuffleQuestionOptions(rawQuestions[1]),
+      shuffleQuestionOptions(rawQuestions[2])
     ],
     successMessage: `「3問[もん]すべて 一致[いっち]！【${characterName}】と 心[こころ]が 通[つう]じ合[あ]い、仲間[なかま]に 加[くわ]わった！」`,
     failMessage: `「おしい！ 気[き]持[も]ちが すれ違[ちが]ってしまった…！もっと 修[しゅう]業[ぎょう]して 出[で]直[なお]そう！」`

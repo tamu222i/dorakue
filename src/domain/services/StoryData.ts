@@ -374,8 +374,8 @@ export const STORY_CHAPTERS: StoryChapter[] = [
       '宇髄天元「へっ…派手にやり遂げたじゃねえか。これで上弦の首を百余年ぶりに討ち取ったぞ！」',
       '【音柱・宇髄天元が鬼殺隊の陣営に合流！遊郭の特製煙幕玉を入手！】'
     ],
-    rewardExp: 1200,
-    rewardMoney: 1800
+    rewardExp: 2200,
+    rewardMoney: 2500
   },
   {
     id: 'chap_7',
@@ -386,7 +386,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '刃毀れした刀を研ぎ直すため訪れた刀鍛冶の里。突如現れた上弦の肆・半天狗と上弦の伍・玉壺！時透の霞の記憶、蜜璃の恋の剛力、そして赫刀が闇を切り裂く！',
     bossCharacterId: 'demon_gyokko_hantengu',
     bossName: '上弦の肆・半天狗 ＆ 上弦の伍・玉壺',
-    recommendedLevel: 36,
+    recommendedLevel: 28,
     unlockedRecruits: ['char_muichiro', 'char_mitsuri'],
     choices: [
       {
@@ -434,8 +434,8 @@ export const STORY_CHAPTERS: StoryChapter[] = [
       '鋼鐵塚蛍「炭治郎！初代の極上日輪刀を研ぎ上げたぞ！これを持って無惨を討て！」',
       '【霞柱・時透無一郎＆恋柱・甘露寺蜜璃が合流！究極の日輪刀を入手！】'
     ],
-    rewardExp: 1800,
-    rewardMoney: 2500
+    rewardExp: 3800,
+    rewardMoney: 4000
   },
   {
     id: 'chap_8',
@@ -446,7 +446,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '産屋敷邸の自爆から開かれた異空間・無限城。上弦の壱・黒死牟を打ち破り、柱全員と炭治郎たちが結集！太陽が昇るその瞬間まで、鬼の始祖・鬼舞辻無惨を繋ぎ止めよ！',
     bossCharacterId: 'demon_muzan_final',
     bossName: '鬼舞辻無惨（始祖形態）＆ 黒死牟',
-    recommendedLevel: 42,
+    recommendedLevel: 32,
     unlockedRecruits: ['char_gyomei', 'char_sanemi', 'char_obanai'],
     choices: [
       {

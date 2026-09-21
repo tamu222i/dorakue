@@ -181,6 +181,48 @@ async function runTests() {
     assert(false, `Then: React components render successfully: ${renderError}`);
   }
 
+  // Scenario 8: クイズの正解がA(0), B(1), C(2)に偏りなく分散されていることの検証
+  console.log('Scenario: Quiz answers are balanced across A, B, and C rather than skewed to A');
+  const { CHARACTER_TRIALS, getOrCreateTrial } = await import('../src/domain/services/RecruitmentTrials.ts');
+  const counts = [0, 0, 0];
+  for (const [_, trial] of Object.entries(CHARACTER_TRIALS)) {
+    for (const q of trial.questions) {
+      counts[q.matchingIndex]++;
+    }
+  }
+  // A, B, C のいずれも0問ではなくバランスよく存在すること
+  assert(counts[0] > 0 && counts[1] > 0 && counts[2] > 0, `Then: Static trial answers are distributed across A, B, C (actual: A=${counts[0]}, B=${counts[1]}, C=${counts[2]})`);
+
+  // 動的シャッフルによってランダムに偏りなく出題されること
+  const dynamicCounts = [0, 0, 0];
+  for (let i = 0; i < 90; i++) {
+    const trial = getOrCreateTrial('char_zenitsu', '善逸', 'slayer', 'thunder');
+    for (const q of trial.questions) {
+      dynamicCounts[q.matchingIndex]++;
+    }
+  }
+  assert(dynamicCounts[0] > 40 && dynamicCounts[1] > 40 && dynamicCounts[2] > 40, `Then: Dynamic shuffled options are evenly distributed (actual: A=${dynamicCounts[0]}, B=${dynamicCounts[1]}, C=${dynamicCounts[2]})`);
+
+  // Scenario 9: 7章・8章の鬼が強すぎる問題の解消検証（全体攻撃による即死防止＆かんたんクリア可能）
+  console.log('Scenario: Chapter 7 and 8 demons are rebalanced so party is not instantly wiped out');
+  const hantengu = catalog.find(c => c.id === 'demon_gyokko_hantengu')!;
+  const muichiro = catalog.find(c => c.id === 'char_muichiro')!;
+  const muzanFinal = catalog.find(c => c.id === 'demon_muzan_final')!;
+
+  // 7章ボスの全体攻撃を受けた時のダメージ（即死しないこと）
+  const hantenguSkillDmg = calculateDamage(hantengu, muichiro, hantengu.skills[0], false, true);
+  assert(hantenguSkillDmg < muichiro.stats.maxHp * 0.5, `Then: Chapter 7 boss all-target skill does not one-shot party member (damage: ${hantenguSkillDmg}, HP: ${muichiro.stats.maxHp})`);
+
+  // 8章ボスの全体攻撃を受けた時のダメージ（即死しないこと）
+  const muzanSkillDmg = calculateDamage(muzanFinal, muichiro, muzanFinal.skills[0], false, true);
+  assert(muzanSkillDmg < muichiro.stats.maxHp * 0.55, `Then: Chapter 8 Muzan shockwave skill does not wipe out member (damage: ${muzanSkillDmg}, HP: ${muichiro.stats.maxHp})`);
+
+  // プレイヤー側の攻撃がボスに通るか（数ターンで確実に撃破可能）
+  const tanjiroSun = catalog.find(c => c.name === '竈門炭治郎')!;
+  const sunSkill = tanjiroSun.skills.find(s => s.breathStyle === 'sun') || tanjiroSun.skills[0];
+  const playerDmg = calculateDamage(tanjiroSun, hantengu, sunSkill, false, true);
+  assert(playerDmg >= 80, `Then: Player breath skill deals substantial damage against Chapter 7 boss (${playerDmg} dmg vs ${hantengu.stats.maxHp} HP)`);
+
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);

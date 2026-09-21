@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Character } from '../domain/models/types.ts';
 import { CharacterTrial, getOrCreateTrial } from '../domain/services/RecruitmentTrials.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
@@ -33,15 +33,19 @@ export const RecruitmentTrialModal: React.FC<RecruitmentTrialModalProps> = ({
   const [answeredHistory, setAnsweredHistory] = useState<boolean[]>([]); // true if matched
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [isFailed, setIsFailed] = useState<boolean>(false);
+  const [trialSessionKey, setTrialSessionKey] = useState<number>(0);
+
+  const trial: CharacterTrial = useMemo(() => {
+    return getOrCreateTrial(
+      character.id,
+      character.name,
+      character.role,
+      character.breathStyle
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character.id, character.name, character.role, character.breathStyle, trialSessionKey, isOpen]);
 
   if (!isOpen) return null;
-
-  const trial: CharacterTrial = getOrCreateTrial(
-    character.id,
-    character.name,
-    character.role,
-    character.breathStyle
-  );
 
   const currentQ = trial.questions[currentStep];
 
@@ -83,6 +87,7 @@ export const RecruitmentTrialModal: React.FC<RecruitmentTrialModalProps> = ({
 
   const handleRetry = () => {
     SoundEngine.playConfirm();
+    setTrialSessionKey(k => k + 1);
     setCurrentStep(0);
     setSelectedOption(null);
     setIsAnswerRevealed(false);

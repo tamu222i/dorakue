@@ -11,7 +11,7 @@ import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { Swords, Wind, Sparkles, Package, LogOut, FastForward, Play, RefreshCw } from 'lucide-react';
+import { Swords, Wind, Sparkles, Package, LogOut, FastForward, Play, RefreshCw, ShieldCheck } from 'lucide-react';
 
 interface BattleScreenProps {
   party: PartyAggregate;
@@ -54,6 +54,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [damageNumber, setDamageNumber] = useState<{ value: number; isCrit: boolean; isHeal?: boolean } | null>(null);
   const [battleSpeed, setBattleSpeed] = useState<1 | 2>(1);
   const [isAutoBattle, setIsAutoBattle] = useState<boolean>(false);
+  const [isEasyAssist, setIsEasyAssist] = useState<boolean>(true);
 
   const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -85,6 +86,25 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
     let currentEnemyHp = enemy.stats.hp;
 
+    // お助けサポート（藤の花の加護＆全集中の力）
+    if (isEasyAssist) {
+      let healedAny = false;
+      for (const m of party.activeMembers) {
+        if (m.stats.hp > 0) {
+          const healAmount = Math.max(25, Math.round(m.stats.maxHp * 0.12));
+          if (m.stats.hp < m.stats.maxHp) {
+            m.stats.hp = Math.min(m.stats.maxHp, m.stats.hp + healAmount);
+            healedAny = true;
+          }
+          m.stats.bp = Math.min(m.stats.maxBp, m.stats.bp + 15);
+        }
+      }
+      if (healedAny) {
+        addLog(`【藤の花の加護】隊士たちの傷が癒え、呼吸力(BP)が回復した！`);
+        await delay(300);
+      }
+    }
+
     // 1. Process player actions in speed order
     for (const action of actions) {
       const actor = action.member;
@@ -96,13 +116,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         addLog(`${actor.name} の こうげき！`);
         await delay(400);
 
-        const isCrit = isCriticalHit(actor);
+        const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
         if (isCrit) {
           SoundEngine.playCritical();
           addLog(`【隙の糸が見えた！】会心の一撃！！`);
         }
 
-        const dmg = calculateDamage(actor, enemy, undefined, isCrit);
+        const dmg = calculateDamage(actor, enemy, undefined, isCrit, isEasyAssist);
         currentEnemyHp = Math.max(0, currentEnemyHp - dmg);
         setEnemy(prev => ({ ...prev, stats: { ...prev.stats, hp: currentEnemyHp } }));
 
@@ -132,7 +152,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           // Heal party member
           SoundEngine.playHeal();
           const target = party.activeMembers.find(m => m.stats.hp > 0 && m.stats.hp < m.stats.maxHp) || actor;
-          const healVal = Math.round(actor.stats.attack * 1.5);
+          const healVal = Math.round(actor.stats.attack * (isEasyAssist ? 2.2 : 1.5));
           target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + healVal);
           setDamageNumber({ value: healVal, isCrit: false, isHeal: true });
           addLog(`${target.name} の HPが ${healVal} 回復した！`);
@@ -140,12 +160,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           setDamageNumber(null);
         } else {
           // Attack skill
-          const isCrit = isCriticalHit(actor);
+          const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
           if (isCrit) {
             SoundEngine.playCritical();
             addLog(`【隙の糸】呼吸の真髄が急所を貫く！！`);
           }
-          const dmg = calculateDamage(actor, enemy, skill, isCrit);
+          const dmg = calculateDamage(actor, enemy, skill, isCrit, isEasyAssist);
           currentEnemyHp = Math.max(0, currentEnemyHp - dmg);
           setEnemy(prev => ({ ...prev, stats: { ...prev.stats, hp: currentEnemyHp } }));
 
@@ -214,7 +234,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           for (let i = 0; i < party.activeMembers.length; i++) {
             const member = party.activeMembers[i];
             if (member.stats.hp <= 0) continue;
-            const dmg = calculateDamage(enemy, member, enemySkill);
+            const dmg = calculateDamage(enemy, member, enemySkill, false, isEasyAssist);
             member.stats.hp = Math.max(0, member.stats.hp - dmg);
             setPartyHitIndex(i);
             addLog(`${member.name} は ${dmg} の ダメージを うけた！`);
@@ -225,7 +245,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           // Target single
           const target = livingMembers[Math.floor(Math.random() * livingMembers.length)];
           const targetIndex = party.activeMembers.indexOf(target);
-          const dmg = calculateDamage(enemy, target, enemySkill);
+          const dmg = calculateDamage(enemy, target, enemySkill, false, isEasyAssist);
           target.stats.hp = Math.max(0, target.stats.hp - dmg);
           setPartyHitIndex(targetIndex);
           SoundEngine.playAttack();
@@ -241,7 +261,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         addLog(`${enemy.name} の こうげき！`);
         await delay(400);
 
-        const dmg = calculateDamage(enemy, target);
+        const dmg = calculateDamage(enemy, target, undefined, false, isEasyAssist);
         target.stats.hp = Math.max(0, target.stats.hp - dmg);
         setPartyHitIndex(targetIndex);
         await delay(400);
@@ -324,7 +344,22 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           <span className="text-white font-bold">{enemy.name}</span>
           <span className="text-slate-400">Lv.{enemy.level}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <button
+            onClick={() => {
+              SoundEngine.playConfirm();
+              setIsEasyAssist(prev => !prev);
+            }}
+            title="かんたんモード：被ダメージ40%軽減、毎ターン自動HP・BP回復、与ダメージ強化"
+            className={`px-2 py-0.5 rounded flex items-center gap-1 text-[11px] font-bold border transition-colors ${
+              isEasyAssist
+                ? 'bg-emerald-700/90 border-emerald-400 text-emerald-100 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ShieldCheck className="w-3 h-3" />
+            <span>{isEasyAssist ? '🔰かんたん:ON' : 'かんたん:OFF'}</span>
+          </button>
           <button
             onClick={() => {
               SoundEngine.playCursor();
