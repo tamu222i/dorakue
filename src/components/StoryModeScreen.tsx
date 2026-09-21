@@ -22,7 +22,8 @@ import {
   ArrowLeft, 
   Award,
   Users,
-  HelpCircle
+  HelpCircle,
+  Swords
 } from 'lucide-react';
 
 interface StoryModeScreenProps {
@@ -95,35 +96,51 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
         </div>
 
         {/* Chapter Carousel / Selector */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5 mt-3">
-          {STORY_CHAPTERS.map((ch, idx) => {
-            const unlocked = idx <= currentChapterIndex;
-            const completed = idx < currentChapterIndex;
-            const isCurrent = idx === currentChapterIndex;
-            const isSelected = idx === selectedIdx;
+        <div className={`grid gap-1.5 mt-3 ${
+          currentChapterIndex >= 8 
+            ? 'grid-cols-3 sm:grid-cols-5 md:grid-cols-9' 
+            : 'grid-cols-2 sm:grid-cols-4 md:grid-cols-8'
+        }`}>
+          {STORY_CHAPTERS.filter((ch) => {
+            // Chapter 9 (hidden stage) is ONLY displayed if Chapter 8 is cleared (currentChapterIndex >= 8)
+            if (ch.chapterNumber === 9) {
+              return currentChapterIndex >= 8;
+            }
+            return true;
+          }).map((ch) => {
+            const origIdx = ch.chapterNumber - 1;
+            const unlocked = origIdx <= currentChapterIndex;
+            const completed = origIdx < currentChapterIndex;
+            const isCurrent = origIdx === currentChapterIndex;
+            const isSelected = origIdx === selectedIdx;
+            const isSecret = ch.chapterNumber === 9;
 
             return (
               <button
                 key={ch.id}
                 onClick={() => {
                   SoundEngine.playCursor();
-                  setSelectedIdx(idx);
+                  setSelectedIdx(origIdx);
                 }}
                 className={`p-2 rounded border flex flex-col items-center justify-between min-h-[72px] transition-all touch-manipulation ${
                   isSelected
-                    ? 'ring-2 ring-amber-400 border-amber-300 bg-slate-800 shadow-md'
-                    : 'border-slate-700 bg-slate-900/80 hover:bg-slate-800'
+                    ? isSecret ? 'ring-2 ring-rose-400 border-rose-300 bg-rose-950/80 shadow-md' : 'ring-2 ring-amber-400 border-amber-300 bg-slate-800 shadow-md'
+                    : isSecret ? 'border-rose-700 bg-rose-950/40 hover:bg-rose-900/60' : 'border-slate-700 bg-slate-900/80 hover:bg-slate-800'
                 } ${!unlocked ? 'opacity-40 grayscale cursor-not-allowed' : ''}`}
               >
-                <div className="text-[10px] font-bold text-slate-400">第{ch.chapterNumber}章</div>
-                <div className="font-bold text-[11px] truncate w-full text-amber-200 text-center">
+                <div className={`text-[10px] font-bold ${isSecret ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`}>
+                  {isSecret ? '★隠し第9章' : `第${ch.chapterNumber}章`}
+                </div>
+                <div className={`font-bold text-[11px] truncate w-full text-center ${isSecret ? 'text-rose-200' : 'text-amber-200'}`}>
                   {ch.locationName.split('（')[0]}
                 </div>
                 <div>
                   {completed ? (
                     <span className="text-[9px] px-1.5 py-0.2 bg-emerald-600/80 rounded text-white font-bold">済</span>
                   ) : isCurrent ? (
-                    <span className="text-[9px] px-1.5 py-0.2 bg-rose-600 rounded text-white font-bold animate-pulse">進行</span>
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded text-white font-bold animate-pulse ${isSecret ? 'bg-rose-600 ring-1 ring-rose-300' : 'bg-rose-600'}`}>
+                      進行
+                    </span>
                   ) : (
                     <span className="text-[9px] text-slate-500">未</span>
                   )}
@@ -165,13 +182,13 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
               </div>
             </div>
 
-            {/* Branching Recruitment Choices with Quiz requirement */}
+            {/* Branching Recruitment Choices with Quiz requirement or Hashira Training */}
             <div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                 <div className="text-xs font-bold text-yellow-300 flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-amber-400" />
                   <span>
-                    <FuriganaText text="運命[うんめい]の選択[せんたく]（3問[もん]一致[いっち]で仲間[なかま]入り！）" />
+                    <FuriganaText text="運命[うんめい]の選択[せんたく]（試練[しれん]クリアで仲間[なかま]入り！）" />
                   </span>
                 </div>
 
@@ -192,6 +209,7 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
                   {chapter.choices.map((choice) => {
                     const recruitChar = catalog.find(c => c.id === choice.recruitCharacterId);
                     const alreadyHas = recruitChar ? party.hasMember(recruitChar.id) : false;
+                    const isHashira = recruitChar?.rank === '柱';
 
                     return (
                       <div
@@ -199,6 +217,8 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
                         className={`p-3 rounded-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all ${
                           alreadyHas
                             ? 'bg-slate-900/60 border-slate-700'
+                            : isHashira
+                            ? 'bg-gradient-to-r from-slate-900 via-rose-950/20 to-amber-950/40 border-amber-500/80 hover:border-amber-300 shadow-md'
                             : 'bg-gradient-to-r from-slate-900 to-amber-950/30 border-amber-500/60 hover:border-amber-400 shadow'
                         }`}
                       >
@@ -218,10 +238,14 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
                             {recruitChar && (
                               <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
                                 <span className="text-cyan-300 font-bold">{recruitChar.name}</span>
-                                <span>({recruitChar.rank})</span>
+                                <span className={isHashira ? 'text-rose-300 font-bold' : ''}>({recruitChar.rank})</span>
                                 {alreadyHas ? (
                                   <span className="text-emerald-400 font-bold flex items-center gap-0.5">
                                     <CheckCircle className="w-3 h-3" /> 加入済み
+                                  </span>
+                                ) : isHashira ? (
+                                  <span className="text-rose-300 font-bold flex items-center gap-0.5">
+                                    <Swords className="w-3 h-3 text-amber-400" /> 柱稽古ミニゲーム
                                   </span>
                                 ) : (
                                   <span className="text-amber-400 font-bold flex items-center gap-0.5">
@@ -238,15 +262,23 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
                           className={`w-full sm:w-auto px-4 py-2.5 rounded text-xs font-bold shrink-0 flex items-center justify-center gap-1.5 border transition-all touch-manipulation ${
                             alreadyHas
                               ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-600'
+                              : isHashira
+                              ? 'bg-gradient-to-r from-rose-600 via-red-500 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white border-amber-300 shadow-[0_0_12px_rgba(244,63,94,0.4)]'
                               : 'bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-slate-950 border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
                           }`}
                         >
-                          <Sparkles className="w-3.5 h-3.5" />
+                          {isHashira && !alreadyHas ? (
+                            <Swords className="w-3.5 h-3.5 text-yellow-300" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
                           <span>
                             {alreadyHas ? (
                               <FuriganaText text="再[さい]挑戦[ちょうせん]・会話[かいわ]" defaultRtColor="text-slate-400" />
+                            ) : isHashira ? (
+                              <FuriganaText text="柱稽古[はしらげいこ]に挑[いど]む！（ミニゲーム）" defaultRtColor="text-white" />
                             ) : (
-                              <FuriganaText text="3問[もん]の試[し]練[れん]に挑[いど]む！" defaultRtColor="text-slate-900" />
+                              <FuriganaText text="3問[もん]の試[し]練[れん]に挑[いど]む！（クイズ）" defaultRtColor="text-slate-900" />
                             )}
                           </span>
                         </button>

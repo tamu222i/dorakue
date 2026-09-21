@@ -663,7 +663,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     : 'text-slate-200'
                 }
               >
-                ▶ {log}
+                ▶ <FuriganaText text={log} />
               </div>
             ))}
           </div>

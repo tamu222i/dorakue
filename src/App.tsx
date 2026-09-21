@@ -19,6 +19,7 @@ import { RecruitmentCelebrationModal, RecruitmentEvent } from './components/Recr
 import { RecruitmentTrialModal } from './components/RecruitmentTrialModal.tsx';
 import { ResetConfirmModal } from './components/ResetConfirmModal.tsx';
 import { PartyFormationModal } from './components/PartyFormationModal.tsx';
+import { HashiraTrainingModal } from './components/HashiraTrainingModal.tsx';
 import { ZukanNotificationModal } from './components/ZukanNotificationModal.tsx';
 import { EndingScreen } from './components/EndingScreen.tsx';
 import { DqFrame } from './components/DqFrame.tsx';
@@ -99,6 +100,11 @@ export default function App() {
   const [zukanNotificationCharacters, setZukanNotificationCharacters] = useState<Character[]>([]);
   const [activeTrial, setActiveTrial] = useState<{
     character: Character;
+    bonusCharacters: Character[];
+    choice: StoryChoice;
+  } | null>(null);
+  const [hashiraTrainingCandidate, setHashiraTrainingCandidate] = useState<{
+    hashira: Character;
     bonusCharacters: Character[];
     choice: StoryChoice;
   } | null>(null);
@@ -212,10 +218,12 @@ export default function App() {
   }, [party.roster, rosterVersion]);
 
   // Handle Story Mode Choice Selection ("カンタンに仲間呼び出しできすぎるので、3問選択肢だしてすべて一致したときだけ仲間になるように調整して。")
+  // And "柱を仲間にするのは柱稽古しないと無理だよね。タイミングミニゲームをクリアしたら仲間になるよ"
   const handleSelectStoryRecruit = (choice: StoryChoice, _chapter: StoryChapter) => {
     const recruitChar = catalog.find(c => c.id === choice.recruitCharacterId);
     if (!recruitChar) return;
 
+    // If candidate is a Hashira, trigger the Hashira Training timing mini-game!
     const bonusChars: Character[] = [];
     if (choice.bonusCharacterIds) {
       for (const bId of choice.bonusCharacterIds) {
@@ -224,12 +232,56 @@ export default function App() {
       }
     }
 
+    if (recruitChar.rank === '柱') {
+      SoundEngine.playConfirm();
+      setHashiraTrainingCandidate({
+        hashira: recruitChar,
+        bonusCharacters: bonusChars,
+        choice
+      });
+      return;
+    }
+
     // Open the 3-question recruitment trial modal
     setActiveTrial({
       character: recruitChar,
       bonusCharacters: bonusChars,
       choice
     });
+  };
+
+  // Called when Hashira Training timing mini-game succeeds from story mode
+  const handleSuccessStoryHashiraTraining = (hashira: Character, bonusCharacters?: Character[]) => {
+    if (!party.hasMember(hashira.id)) {
+      party.recruitMember(hashira);
+    }
+    const recruitedIds = [hashira.id];
+
+    if (bonusCharacters) {
+      for (const b of bonusCharacters) {
+        if (!party.hasMember(b.id)) {
+          party.recruitMember(b);
+        }
+        recruitedIds.push(b.id);
+      }
+    }
+
+    registerEncounters(recruitedIds);
+    setRosterVersion(v => v + 1);
+    const prevChoice = hashiraTrainingCandidate?.choice;
+    setHashiraTrainingCandidate(null);
+
+    // Trigger prominent celebration modal
+    setRecruitmentEvent({
+      mainCharacter: hashira,
+      bonusCharacters: bonusCharacters || [],
+      dialogue: prevChoice?.resultDialogue || [
+        `${hashira.name}「見事だ炭治郎！柱稽古の厳しい試練をよくぞ突破した！」`,
+        `${hashira.name}「お前と共に、鬼舞辻無惨の首を断つまで戦い抜こう！」`
+      ]
+    });
+
+    triggerSave();
   };
 
   // Called ONLY when all 3 questions match in the recruitment trial
@@ -347,33 +399,13 @@ export default function App() {
     if (currentBattle?.isBoss && currentBattle.chapter) {
       const finishedChapterNum = currentBattle.chapter.chapterNumber;
 
-      // Unlock recruited characters for this chapter
-      const newlyRecruitedIds: string[] = [];
-      for (const recruitId of currentBattle.chapter.unlockedRecruits) {
-        const recruitChar = catalog.find(c => c.id === recruitId);
-        if (recruitChar && !party.hasMember(recruitChar.id)) {
-          party.recruitMember(recruitChar);
-          newlyRecruitedIds.push(recruitChar.id);
-        }
-      }
-
-      // Mark recruits as encountered
-      if (newlyRecruitedIds.length > 0) {
-        registerEncounters(newlyRecruitedIds);
-        const mainRecruit = catalog.find(c => c.id === newlyRecruitedIds[0]);
-        const bonusRecruits = newlyRecruitedIds
-          .slice(1)
-          .map(id => catalog.find(c => c.id === id))
-          .filter(Boolean) as Character[];
-
-        if (mainRecruit) {
-          // Open prominent recruitment celebration fanfare!
-          setRecruitmentEvent({
-            mainCharacter: mainRecruit,
-            bonusCharacters: bonusRecruits,
-            dialogue: currentBattle.chapter.victoryDialogues
-          });
-        }
+      // Note: As requested by user ("あと勝手にステージクリアで仲間にならないようにして。クイズかミニゲームかどちらかクリアで仲間だよ"),
+      // characters are NOT automatically added to the party upon clearing a stage.
+      // Instead, they are registered in the Zukan (encountered) and made available to recruit
+      // via the 3-question quiz trial or Hashira timing mini-game in Story Mode or the Inn.
+      const chapterRecruitIds = currentBattle.chapter.unlockedRecruits || [];
+      if (chapterRecruitIds.length > 0) {
+        registerEncounters(chapterRecruitIds);
       }
 
       setRosterVersion(v => v + 1);
@@ -690,6 +722,17 @@ export default function App() {
         }}
         onEncounter={registerEncounters}
       />
+
+      {/* Hashira Training Timing Mini-Game Modal for Story Mode Recruitment */}
+      {hashiraTrainingCandidate && (
+        <HashiraTrainingModal
+          hashira={hashiraTrainingCandidate.hashira}
+          bonusCharacters={hashiraTrainingCandidate.bonusCharacters}
+          isOpen={!!hashiraTrainingCandidate}
+          onClose={() => setHashiraTrainingCandidate(null)}
+          onSuccessRecruit={handleSuccessStoryHashiraTraining}
+        />
+      )}
 
       {/* Zukan Registration Modal ("図鑑に追加も分かりづらいので都度表示して") */}
       {zukanNotificationCharacters.length > 0 && (

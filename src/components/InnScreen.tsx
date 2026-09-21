@@ -12,7 +12,9 @@ import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
 import { PartyFormationModal } from './PartyFormationModal.tsx';
-import { Bed, UserPlus, Users, ShoppingBag, CheckCircle, ArrowRight, ArrowRightLeft, Sparkles, GripVertical } from 'lucide-react';
+import { HashiraTrainingModal } from './HashiraTrainingModal.tsx';
+import { RecruitmentTrialModal } from './RecruitmentTrialModal.tsx';
+import { Bed, UserPlus, Users, ShoppingBag, CheckCircle, ArrowRight, ArrowRightLeft, Sparkles, GripVertical, Swords, HelpCircle } from 'lucide-react';
 
 interface InnScreenProps {
   party: PartyAggregate;
@@ -48,6 +50,11 @@ export const InnScreen: React.FC<InnScreenProps> = ({
     onEncounter?.(candidates.map(c => c.id));
     return candidates;
   });
+  const [activeHashiraTraining, setActiveHashiraTraining] = useState<Character | null>(null);
+  const [activeRecruitTrial, setActiveRecruitTrial] = useState<{
+    candidate: Character;
+    cost: number;
+  } | null>(null);
 
   // Shop items for sale
   const SHOP_ITEMS: Item[] = [
@@ -63,8 +70,16 @@ export const InnScreen: React.FC<InnScreenProps> = ({
     setDialogue(res.message);
   };
 
-  // Scout member
+  // Scout member (Regular 3-question Quiz vs Hashira Training Mini-Game)
   const handleScout = (candidate: Character) => {
+    // If the candidate is a Hashira: Mini-game
+    if (candidate.rank === '柱') {
+      SoundEngine.playConfirm();
+      setActiveHashiraTraining(candidate);
+      return;
+    }
+
+    // Regular recruit: requires 3-question quiz
     const scoutCost = Math.max(50, candidate.level * 30);
     if (party.money < scoutCost) {
       SoundEngine.playCancel();
@@ -72,11 +87,42 @@ export const InnScreen: React.FC<InnScreenProps> = ({
       return;
     }
 
-    party.money -= scoutCost;
-    party.recruitMember(candidate);
+    SoundEngine.playConfirm();
+    setActiveRecruitTrial({
+      candidate,
+      cost: scoutCost
+    });
+  };
+
+  // Called when 3-question trial succeeds in Inn
+  const handleSuccessRecruitTrial = (candidate: Character) => {
+    if (!activeRecruitTrial) return;
+    const cost = activeRecruitTrial.cost;
+    party.money = Math.max(0, party.money - cost);
+
+    if (!party.hasMember(candidate.id)) {
+      party.recruitMember(candidate);
+    }
     onEncounter?.([candidate.id]);
     SoundEngine.playLevelUp();
-    setDialogue(`【勧誘成功！】${candidate.name}（${candidate.title}）が鬼殺隊の陣営に合流しました！`);
+    setDialogue(`【試練突破・勧誘成功！】3問の試練を見事突破し、${candidate.name}が鬼殺隊の陣営に合流しました！（路銀: -${cost}銭）`);
+    setActiveRecruitTrial(null);
+
+    // Refresh scout candidates
+    const nextCandidates = InnService.getScoutCandidates(catalog, party);
+    onEncounter?.(nextCandidates.map(c => c.id));
+    setScoutCandidates(nextCandidates);
+  };
+
+  // Called when Hashira Training timing mini-game succeeds
+  const handleSuccessHashiraTraining = (hashira: Character) => {
+    if (!party.hasMember(hashira.id)) {
+      party.recruitMember(hashira);
+    }
+    onEncounter?.([hashira.id]);
+    SoundEngine.playLevelUp();
+    setDialogue(`【柱稽古突破・勧誘大成功！】${hashira.name}が修行の成果を認め、正式に鬼殺隊の陣営に合流しました！`);
+    setActiveHashiraTraining(null);
     // Refresh scout candidates
     const nextCandidates = InnService.getScoutCandidates(catalog, party);
     onEncounter?.(nextCandidates.map(c => c.id));
@@ -231,19 +277,29 @@ export const InnScreen: React.FC<InnScreenProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {scoutCandidates.map(candidate => {
+                const isHashira = candidate.rank === '柱';
                 const scoutCost = Math.max(50, candidate.level * 30);
-                const canAfford = party.money >= scoutCost;
+                const canAfford = isHashira || party.money >= scoutCost;
 
                 return (
                   <div
                     key={candidate.id}
-                    className="p-2.5 bg-slate-900 border border-slate-700 rounded flex flex-col justify-between"
+                    className={`p-2.5 bg-slate-900 border rounded flex flex-col justify-between ${
+                      isHashira ? 'border-amber-500/80 bg-gradient-to-b from-slate-900 to-amber-950/30' : 'border-slate-700'
+                    }`}
                   >
                     <div>
                       <div className="flex items-center gap-2 mb-1.5">
                         <PixelSprite character={candidate} size={40} />
                         <div>
-                          <div className="font-bold text-xs text-amber-200">{candidate.name}</div>
+                          <div className="font-bold text-xs text-amber-200 flex items-center gap-1">
+                            <span>{candidate.name}</span>
+                            {isHashira && (
+                              <span className="text-[9px] bg-rose-600 text-white px-1 rounded font-bold">
+                                柱
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-slate-400">階級: {candidate.rank} / Lv.{candidate.level}</div>
                           <div className="text-[10px] text-cyan-300">呼吸: {candidate.breathStyle}</div>
                         </div>
@@ -261,18 +317,28 @@ export const InnScreen: React.FC<InnScreenProps> = ({
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleScout(candidate)}
-                      disabled={!canAfford}
-                      className={`w-full py-1.5 rounded text-xs font-bold flex items-center justify-center gap-1 border transition-colors ${
-                        canAfford
-                          ? 'bg-cyan-600 hover:bg-cyan-500 border-cyan-300 text-white'
-                          : 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
-                      }`}
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      <span>仲間にする ({scoutCost}銭)</span>
-                    </button>
+                    {isHashira ? (
+                      <button
+                        onClick={() => handleScout(candidate)}
+                        className="w-full py-1.5 rounded text-xs font-bold flex items-center justify-center gap-1 border bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-500 hover:to-rose-500 border-amber-300 text-white shadow-md transition-all active:scale-95"
+                      >
+                        <Swords className="w-3.5 h-3.5 text-yellow-300" />
+                        <span>柱稽古に挑む（ミニゲーム）</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleScout(candidate)}
+                        disabled={!canAfford}
+                        className={`w-full py-1.5 rounded text-xs font-bold flex items-center justify-center gap-1 border transition-colors ${
+                          canAfford
+                            ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 border-cyan-300 text-white shadow'
+                            : 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                        }`}
+                      >
+                        <HelpCircle className="w-3.5 h-3.5" />
+                        <span>3問クイズに挑む ({scoutCost}銭)</span>
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -678,6 +744,26 @@ export const InnScreen: React.FC<InnScreenProps> = ({
         onFormationChanged={() => setRerenderToggle(v => v + 1)}
         onEncounter={onEncounter}
       />
+
+      {/* Hashira Training Timing Mini-Game Modal */}
+      {activeHashiraTraining && (
+        <HashiraTrainingModal
+          hashira={activeHashiraTraining}
+          isOpen={!!activeHashiraTraining}
+          onClose={() => setActiveHashiraTraining(null)}
+          onSuccessRecruit={handleSuccessHashiraTraining}
+        />
+      )}
+
+      {/* 3-Question Quiz Recruitment Modal for Regular Corps Members */}
+      {activeRecruitTrial && (
+        <RecruitmentTrialModal
+          character={activeRecruitTrial.candidate}
+          isOpen={!!activeRecruitTrial}
+          onClose={() => setActiveRecruitTrial(null)}
+          onSuccessRecruit={(char) => handleSuccessRecruitTrial(char)}
+        />
+      )}
     </div>
   );
 };

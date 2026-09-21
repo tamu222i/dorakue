@@ -118,37 +118,57 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
         </div>
       </DqFrame>
 
-      {/* Main Chapter Progression Bar (全9章・最終隠しステージ対応) */}
-      <DqFrame title="原作ストーリー討伐進行（全9章・最終隠しステージ）" className="p-3">
-        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5 text-center text-xs">
-          {STORY_CHAPTERS.map((ch, idx) => {
-            const unlocked = idx <= currentChapterIndex;
-            const completed = idx < currentChapterIndex;
-            const isCurrent = idx === currentChapterIndex;
-            const isSelected = idx === selectedChapterIdx;
+      {/* Main Chapter Progression Bar */}
+      <DqFrame 
+        title={currentChapterIndex >= 8 ? "原作ストーリー討伐進行（全8章＋最終隠しステージ出現！）" : "原作ストーリー討伐進行（全8章）"} 
+        className="p-3"
+      >
+        <div className={`grid gap-1.5 text-center text-xs ${
+          currentChapterIndex >= 8 
+            ? 'grid-cols-3 sm:grid-cols-5 md:grid-cols-9' 
+            : 'grid-cols-2 sm:grid-cols-4 md:grid-cols-8'
+        }`}>
+          {STORY_CHAPTERS.filter((ch) => {
+            // Chapter 9 (hidden stage) is ONLY displayed if Chapter 8 is cleared (currentChapterIndex >= 8)
+            if (ch.chapterNumber === 9) {
+              return currentChapterIndex >= 8;
+            }
+            return true;
+          }).map((ch, idx) => {
+            // Note: ch.chapterNumber - 1 corresponds to original index
+            const origIdx = ch.chapterNumber - 1;
+            const unlocked = origIdx <= currentChapterIndex;
+            const completed = origIdx < currentChapterIndex;
+            const isCurrent = origIdx === currentChapterIndex;
+            const isSelected = origIdx === selectedChapterIdx;
+            const isSecret = ch.chapterNumber === 9;
 
             return (
               <button
                 key={ch.id}
                 onClick={() => {
                   SoundEngine.playCursor();
-                  setSelectedChapterIdx(idx);
+                  setSelectedChapterIdx(origIdx);
                 }}
                 className={`p-2 rounded border flex flex-col items-center justify-between min-h-[76px] transition-all touch-manipulation ${
                   isSelected
-                    ? 'ring-2 ring-amber-400 border-amber-300 bg-slate-800'
-                    : 'border-slate-700 bg-slate-900/80'
+                    ? isSecret ? 'ring-2 ring-rose-400 border-rose-300 bg-rose-950/80 shadow-md' : 'ring-2 ring-amber-400 border-amber-300 bg-slate-800'
+                    : isSecret ? 'border-rose-700 bg-rose-950/40 hover:bg-rose-900/60' : 'border-slate-700 bg-slate-900/80'
                 } ${!unlocked ? 'opacity-40 grayscale cursor-not-allowed' : 'hover:bg-slate-800'}`}
               >
-                <div className="text-[10px] font-bold text-slate-400">第{ch.chapterNumber}章</div>
-                <div className="font-bold text-[11px] truncate w-full text-amber-200">
+                <div className={`text-[10px] font-bold ${isSecret ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`}>
+                  {isSecret ? '★隠し第9章' : `第${ch.chapterNumber}章`}
+                </div>
+                <div className={`font-bold text-[11px] truncate w-full ${isSecret ? 'text-rose-200' : 'text-amber-200'}`}>
                   {ch.locationName.split('（')[0]}
                 </div>
                 <div>
                   {completed ? (
                     <span className="text-[9px] px-1.5 py-0.2 bg-emerald-600/80 rounded text-white font-bold">討伐済</span>
                   ) : isCurrent ? (
-                    <span className="text-[9px] px-1.5 py-0.2 bg-rose-600 rounded text-white font-bold animate-pulse">進行中</span>
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded text-white font-bold animate-pulse ${isSecret ? 'bg-rose-600 ring-1 ring-rose-300' : 'bg-rose-600'}`}>
+                      進行中
+                    </span>
                   ) : (
                     <span className="text-[9px] text-slate-500">未解放</span>
                   )}
