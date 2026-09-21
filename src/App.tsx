@@ -18,12 +18,13 @@ import { StoryModeScreen } from './components/StoryModeScreen.tsx';
 import { RecruitmentCelebrationModal, RecruitmentEvent } from './components/RecruitmentCelebrationModal.tsx';
 import { RecruitmentTrialModal } from './components/RecruitmentTrialModal.tsx';
 import { ResetConfirmModal } from './components/ResetConfirmModal.tsx';
+import { PartyFormationModal } from './components/PartyFormationModal.tsx';
 import { DqFrame } from './components/DqFrame.tsx';
 import { FuriganaText } from './components/Ruby.tsx';
 import { PixelSprite } from './infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from './infrastructure/audio/RetroSound.ts';
 import { BgmEngine, BgmTrackId, TRACKS } from './infrastructure/audio/RetroBGM.ts';
-import { Sparkles, Award, RefreshCw, Flame, Save, RotateCcw, Check, BookOpen, Music, Volume2, VolumeX } from 'lucide-react';
+import { Sparkles, Award, RefreshCw, Flame, Save, RotateCcw, Check, BookOpen, Music, Volume2, VolumeX, Users } from 'lucide-react';
 
 type GameScreen = 'world' | 'battle' | 'inn' | 'zukan' | 'story' | 'ending';
 
@@ -92,6 +93,7 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
   const [recruitmentEvent, setRecruitmentEvent] = useState<RecruitmentEvent | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+  const [isFormationModalOpen, setIsFormationModalOpen] = useState<boolean>(false);
   const [activeTrial, setActiveTrial] = useState<{
     character: Character;
     bonusCharacters: Character[];
@@ -426,7 +428,25 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 text-[11px] font-mono">
+          <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] font-mono flex-wrap">
+            {/* Quick Formation Swap Button */}
+            <button
+              onClick={() => {
+                SoundEngine.playConfirm();
+                setIsFormationModalOpen(true);
+              }}
+              disabled={screen === 'battle'}
+              className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
+                screen === 'battle'
+                  ? 'border-slate-800 bg-slate-900 text-slate-600 cursor-not-allowed'
+                  : 'border-cyan-400 bg-cyan-950/90 hover:bg-cyan-900 text-cyan-200 shadow-sm'
+              }`}
+              title="前線隊士の入れ替え・好きな隊士の特別招集"
+            >
+              <Users className="w-3 h-3 text-cyan-300" />
+              <span><FuriganaText text="部隊[ぶたい]編成[へんせい]" /></span>
+            </button>
+
             {/* Story Mode Quick Jump */}
             <button
               onClick={() => {
@@ -659,6 +679,19 @@ export default function App() {
         isOpen={showResetConfirm}
         onClose={() => setShowResetConfirm(false)}
         onConfirmReset={handleConfirmReset}
+      />
+
+      {/* Flexible Party Formation Modal ("仲間の入れ替えが難しい。。好きな人と入れ替えられるようにして。") */}
+      <PartyFormationModal
+        party={party}
+        catalog={catalog}
+        isOpen={isFormationModalOpen}
+        onClose={() => setIsFormationModalOpen(false)}
+        onFormationChanged={() => {
+          setRosterVersion(v => v + 1);
+          triggerSave();
+        }}
+        onEncounter={registerEncounters}
       />
     </div>
   );

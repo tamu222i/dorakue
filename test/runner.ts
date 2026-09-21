@@ -22,7 +22,7 @@ function assert(condition: boolean, testName: string) {
   }
 }
 
-function runTests() {
+async function runTests() {
   console.log('=== [TDD: Unit Tests] ===');
 
   // Test 1: 300 characters catalog check (200 characters + 100 mob demons for leveling up)
@@ -155,6 +155,31 @@ function runTests() {
   // Verify bonus characters exist (e.g. Tamayo & Yushiro, Sabito & Makomo)
   const choicesWithBonus = STORY_CHAPTERS.flatMap(ch => ch.choices || []).filter(c => c.bonusCharacterIds && c.bonusCharacterIds.length > 0);
   assert(choicesWithBonus.length > 0, `Then: Multiple companion recruitments exist (actual: ${choicesWithBonus.length} choices)`);
+
+  // Scenario 7: React コンポーネント完全レンダリング保証（表示崩れ・未定義ハンドラ参照の防止）
+  console.log('Scenario: All React screens and modals render without ReferenceError or runtime crash');
+  try {
+    const React = await import('react');
+    const ReactDOMServer = await import('react-dom/server');
+    const App = (await import('../src/App.tsx')).default;
+    const { PartyFormationModal } = await import('../src/components/PartyFormationModal.tsx');
+
+    const appHtml = ReactDOMServer.renderToString(React.createElement(App));
+    assert(appHtml.length > 1000, `Then: App component renders without throwing ReferenceError (HTML len: ${appHtml.length})`);
+
+    const modalHtml = ReactDOMServer.renderToString(React.createElement(PartyFormationModal, {
+      party,
+      catalog,
+      isOpen: true,
+      onClose: () => {},
+      onFormationChanged: () => {},
+      onEncounter: () => {}
+    }));
+    assert(modalHtml.length > 500, `Then: PartyFormationModal renders with all tabs and character catalog (HTML len: ${modalHtml.length})`);
+  } catch (renderError) {
+    console.error('Render assertion failed:', renderError);
+    assert(false, `Then: React components render successfully: ${renderError}`);
+  }
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

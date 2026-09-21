@@ -11,7 +11,8 @@ import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { Bed, UserPlus, Users, ShoppingBag, CheckCircle, ArrowRight } from 'lucide-react';
+import { PartyFormationModal } from './PartyFormationModal.tsx';
+import { Bed, UserPlus, Users, ShoppingBag, CheckCircle, ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
 
 interface InnScreenProps {
   party: PartyAggregate;
@@ -31,6 +32,9 @@ export const InnScreen: React.FC<InnScreenProps> = ({
   onEncounter
 }) => {
   const [activeTab, setActiveTab] = useState<InnTab>(initialMessage ? 'rest' : 'rest');
+  const [isFormationModalOpen, setIsFormationModalOpen] = useState<boolean>(false);
+  const [selectedSlot, setSelectedSlot] = useState<number>(0);
+  const [, setRerenderToggle] = useState<number>(0);
   const [dialogue, setDialogue] = useState<string>(
     initialMessage ||
     '女将「ようこそ、藤の家紋の家へ。鬼狩りの皆様、傷を癒し、隊の結束を固めていってくださいね」'
@@ -275,28 +279,91 @@ export const InnScreen: React.FC<InnScreenProps> = ({
         {/* 3. FORMATION TAB */}
         {activeTab === 'formation' && (
           <DqFrame title="戦闘部隊の編成 (最大4人)" className="p-3">
-            <div className="text-xs text-slate-300 mb-2">
-              前線で戦う4名の戦闘隊士を選択してください。（現在加入総数: {party.roster.length}名）
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+              <div className="text-xs text-slate-300">
+                前線で戦う4名をお好きな隊士に自由に入れ替えられます。（所属: {party.roster.length}名）
+              </div>
+              <button
+                onClick={() => {
+                  SoundEngine.playConfirm();
+                  setIsFormationModalOpen(true);
+                }}
+                className="px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded border border-purple-300 shadow flex items-center gap-1.5 touch-manipulation animate-pulse"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                <span>全隊士から好きな人を招集・自由編成</span>
+              </button>
             </div>
 
-            {/* Current Active 4 */}
+            {/* Current Active 4 Slots */}
+            <div className="text-[11px] font-bold text-amber-300 mb-1 flex items-center justify-between">
+              <span>出撃部隊（タップして枠を選択 / 枠同士で並び替え）:</span>
+              <span className="text-slate-300">選択中: 【枠 {selectedSlot + 1}】</span>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
               {[0, 1, 2, 3].map(slotIdx => {
                 const member = party.activeMembers[slotIdx];
+                const isSelected = selectedSlot === slotIdx;
+
                 return (
                   <div
                     key={slotIdx}
-                    className="p-2 bg-slate-900 border-2 border-amber-400/80 rounded flex flex-col items-center text-center"
+                    onClick={() => {
+                      SoundEngine.playCursor();
+                      if (selectedSlot !== slotIdx && slotIdx < party.activeMembers.length && selectedSlot < party.activeMembers.length) {
+                        party.swapActiveSlots(selectedSlot, slotIdx);
+                        SoundEngine.playConfirm();
+                        setDialogue(`部隊の並び順（前衛・後衛）を入れ替えました！`);
+                        setRerenderToggle(v => v + 1);
+                        setSelectedSlot(slotIdx);
+                        return;
+                      }
+                      setSelectedSlot(slotIdx);
+                    }}
+                    className={`p-2 rounded border-2 cursor-pointer transition-all flex flex-col items-center text-center touch-manipulation ${
+                      isSelected
+                        ? 'bg-amber-950/80 border-amber-400 shadow-md scale-[1.02] ring-2 ring-amber-400/50'
+                        : member
+                        ? 'bg-slate-900 border-slate-700 hover:border-amber-500/60'
+                        : 'bg-slate-950 border-dashed border-slate-700'
+                    }`}
                   >
-                    <span className="text-[9px] text-amber-300 font-bold mb-1">枠 {slotIdx + 1}</span>
+                    <div className="w-full flex items-center justify-between mb-1">
+                      <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
+                        isSelected ? 'bg-amber-500 text-black' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        枠 {slotIdx + 1}
+                      </span>
+                      {member && party.activeMembers.length > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            party.removeMemberFromActive(slotIdx);
+                            SoundEngine.playConfirm();
+                            setDialogue(`${member.name} を控えに下げました。`);
+                            setRerenderToggle(v => v + 1);
+                          }}
+                          className="text-[9px] px-1 text-red-300 hover:text-red-100 bg-red-950/60 rounded border border-red-800/60"
+                        >
+                          外す
+                        </button>
+                      )}
+                    </div>
+
                     {member ? (
                       <>
-                        <PixelSprite character={member} size={36} />
+                        <PixelSprite character={member} size={38} />
                         <span className="text-xs font-bold text-white mt-1 truncate max-w-full">{member.name}</span>
-                        <span className="text-[10px] text-slate-400">Lv.{member.level}</span>
+                        <span className="text-[10px] text-amber-300">Lv.{member.level} / {member.rank}</span>
+                        <span className="text-[9px] text-cyan-300 truncate max-w-full">{member.breathStyle}</span>
+                        <div className="mt-1 text-[9px] text-amber-200 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800 flex items-center gap-1">
+                          <ArrowRightLeft className="w-2.5 h-2.5" />
+                          <span>交代する</span>
+                        </div>
                       </>
                     ) : (
-                      <span className="text-xs text-slate-500 py-4">空き</span>
+                      <span className="text-xs text-slate-500 py-6">空き（配置可能）</span>
                     )}
                   </div>
                 );
@@ -304,38 +371,67 @@ export const InnScreen: React.FC<InnScreenProps> = ({
             </div>
 
             {/* Roster Pool to swap from */}
-            <div className="text-xs font-bold text-slate-300 mb-1">所属隊士一覧（クリックして前線へ配置）:</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+            <div className="text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
+              <span>所属隊士一覧（タップすると【枠 {selectedSlot + 1}】に配置）:</span>
+              <button
+                onClick={() => setIsFormationModalOpen(true)}
+                className="text-[11px] text-yellow-300 hover:underline flex items-center gap-1"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>まだ仲間にしていない隊士を特別招集する &gt;</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-1">
               {party.roster.map(member => {
                 const isActive = party.activeMembers.some(m => m.id === member.id);
+                const activeIdx = party.activeMembers.findIndex(m => m.id === member.id);
+
                 return (
                   <div
                     key={member.id}
-                    className={`p-1.5 rounded border flex items-center justify-between text-xs ${
-                      isActive ? 'bg-indigo-950/60 border-indigo-500/80' : 'bg-slate-900 border-slate-700'
+                    onClick={() => {
+                      SoundEngine.playLevelUp();
+                      party.replaceActiveMember(selectedSlot, member);
+                      setDialogue(`【${member.name}】を枠${selectedSlot + 1}に配属しました！`);
+                      setRerenderToggle(v => v + 1);
+                      setSelectedSlot((selectedSlot + 1) % 4);
+                    }}
+                    className={`p-1.5 rounded border flex items-center justify-between text-xs cursor-pointer transition-colors ${
+                      isActive ? 'bg-indigo-950/60 border-indigo-500/80 hover:bg-indigo-900/60' : 'bg-slate-900 border-slate-700 hover:border-amber-500/60 hover:bg-slate-800'
                     }`}
                   >
                     <div className="flex items-center gap-2 overflow-hidden">
-                      <PixelSprite character={member} size={28} />
+                      <PixelSprite character={member} size={30} />
                       <div className="truncate">
-                        <div className="font-bold text-white truncate">{member.name}</div>
-                        <div className="text-[10px] text-slate-400">Lv.{member.level} / {member.rank}</div>
+                        <div className="font-bold text-white truncate flex items-center gap-1">
+                          <span>{member.name}</span>
+                          {member.rank === '柱' && (
+                            <span className="text-[8px] bg-amber-500 text-black px-1 rounded font-bold">柱</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-400">Lv.{member.level} / {member.breathStyle}</div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       {isActive ? (
-                        <span className="text-[10px] px-2 py-0.5 bg-indigo-600 rounded text-white font-bold">前線参戦中</span>
+                        <span className="text-[10px] px-2 py-0.5 bg-indigo-600 rounded text-white font-bold">
+                          枠 {activeIdx + 1}
+                        </span>
                       ) : (
                         <button
-                          onClick={() => {
-                            SoundEngine.playConfirm();
-                            party.setPartySlot(party.activeMembers.length < 4 ? party.activeMembers.length : 0, member.id);
-                            setDialogue(`${member.name} を前線部隊に編入しました！`);
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            SoundEngine.playLevelUp();
+                            party.replaceActiveMember(selectedSlot, member);
+                            setDialogue(`【${member.name}】を枠${selectedSlot + 1}に配属しました！`);
+                            setRerenderToggle(v => v + 1);
+                            setSelectedSlot((selectedSlot + 1) % 4);
                           }}
                           className="text-[10px] px-2 py-0.5 bg-amber-600 hover:bg-amber-500 rounded text-white font-bold border border-amber-300"
                         >
-                          前線へ
+                          枠{selectedSlot + 1}へ
                         </button>
                       )}
                     </div>
@@ -404,6 +500,16 @@ export const InnScreen: React.FC<InnScreenProps> = ({
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Free Party Formation Modal */}
+      <PartyFormationModal
+        party={party}
+        catalog={catalog}
+        isOpen={isFormationModalOpen}
+        onClose={() => setIsFormationModalOpen(false)}
+        onFormationChanged={() => setRerenderToggle(v => v + 1)}
+        onEncounter={onEncounter}
+      />
     </div>
   );
 };

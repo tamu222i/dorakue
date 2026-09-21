@@ -91,6 +91,55 @@ export class PartyAggregate {
     return true;
   }
 
+  // Swap two active slots
+  public swapActiveSlots(slotA: number, slotB: number): boolean {
+    if (slotA < 0 || slotA >= this.activeMembers.length) return false;
+    if (slotB < 0 || slotB >= this.activeMembers.length) return false;
+    const temp = this.activeMembers[slotA];
+    this.activeMembers[slotA] = this.activeMembers[slotB];
+    this.activeMembers[slotB] = temp;
+    return true;
+  }
+
+  // Remove a member from active party (move to reserve), keeping at least 1 member
+  public removeMemberFromActive(slotIndex: number): boolean {
+    if (this.activeMembers.length <= 1) return false; // Must keep at least 1 hero
+    if (slotIndex < 0 || slotIndex >= this.activeMembers.length) return false;
+    this.activeMembers.splice(slotIndex, 1);
+    return true;
+  }
+
+  // Directly set/replace active member at slot with any character
+  public replaceActiveMember(slotIndex: number, character: Character): boolean {
+    // Ensure character is in roster
+    if (!this.hasMember(character.id) && !this.hasMember(character.name)) {
+      character.isUnlocked = true;
+      this.roster.push(character);
+    }
+    const realChar = this.roster.find(m => m.id === character.id || m.name === character.name) || character;
+
+    // If character is already in active party at another slot, swap them
+    const existingIdx = this.activeMembers.findIndex(m => m.id === realChar.id);
+    if (existingIdx >= 0) {
+      if (existingIdx === slotIndex) return true;
+      const temp = this.activeMembers[slotIndex];
+      this.activeMembers[slotIndex] = this.activeMembers[existingIdx];
+      if (temp) {
+        this.activeMembers[existingIdx] = temp;
+      }
+      return true;
+    }
+
+    if (slotIndex < this.activeMembers.length) {
+      this.activeMembers[slotIndex] = realChar;
+    } else if (this.activeMembers.length < 4) {
+      this.activeMembers.push(realChar);
+    } else {
+      this.activeMembers[3] = realChar;
+    }
+    return true;
+  }
+
   public addExpAndMoney(exp: number, gold: number): { leveledUp: { name: string; newLevel: number }[] } {
     this.money += gold;
     const leveledUp: { name: string; newLevel: number }[] = [];
