@@ -8,8 +8,6 @@ import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
 import { Character } from '../domain/models/types.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
-import { DqFrame } from './DqFrame.tsx';
-import { FuriganaText } from './Ruby.tsx';
 import {
   Users,
   UserPlus,
@@ -19,11 +17,7 @@ import {
   Search,
   Sparkles,
   Shield,
-  Swords,
-  Heart,
-  Zap,
-  Star,
-  ChevronDown
+  GripVertical
 } from 'lucide-react';
 
 interface PartyFormationModalProps {
@@ -46,16 +40,26 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
   onFormationChanged,
   onEncounter
 }) => {
-  // Currently selected slot (0 to 3) for swapping
-  const [selectedSlot, setSelectedSlot] = useState<number>(0);
+  // Selected slot in the active 4: 0, 1, 2, 3 or null if none selected
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  // Selected character from the bottom roster/catalog: Character | null
+  const [selectedCandidate, setSelectedCandidate] = useState<Character | null>(null);
+
+  // Drag-and-drop state
+  const [draggedSlot, setDraggedSlot] = useState<number | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
+  const [draggedCandidate, setDraggedCandidate] = useState<Character | null>(null);
+
   const [activeTab, setActiveTab] = useState<FormationTab>('roster');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [message, setMessage] = useState<string>('入れ替えたい【枠】を選び、下の隊士をタップしてください。');
+  const [message, setMessage] = useState<string>(
+    '【1タップ目で選択】→【2タップ目で入れ替え】できます。ドラッグ＆ドロップでも入れ替え可能です！'
+  );
 
-  // Filter friendly characters from the entire catalog (role !== 'demon')
+  // Filter friendly characters from the catalog (role !== 'demon')
   const allFriendlyCharacters = useMemo(() => {
-    return catalog.filter(c => c.role !== 'demon');
+    return catalog.filter(c => c && c.role !== 'demon');
   }, [catalog]);
 
   // Filter for Tab 2 (All Catalog)
@@ -85,39 +89,88 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle slot click
+  // --- Click Logic: 1 tap to select, 2nd tap to swap ---
+
   const handleSlotClick = (slotIdx: number) => {
-    SoundEngine.playCursor();
-    // If clicking a different slot while already having a slot selected, swap them!
-    if (selectedSlot !== slotIdx && slotIdx < party.activeMembers.length && selectedSlot < party.activeMembers.length) {
-      party.swapActiveSlots(selectedSlot, slotIdx);
-      SoundEngine.playConfirm();
-      setMessage(`部隊の並び順（前衛・後衛）を入れ替えました！`);
+    // If a candidate from the roster is already selected, 2nd tap on slot puts them in!
+    if (selectedCandidate) {
+      party.replaceActiveMember(slotIdx, selectedCandidate);
+      SoundEngine.playLevelUp();
+      onEncounter?.([selectedCandidate.id]);
       onFormationChanged?.();
-      setSelectedSlot(slotIdx);
+      setMessage(`【${selectedCandidate.name}】を枠${slotIdx + 1}に配属しました！`);
+      setSelectedCandidate(null);
+      setSelectedSlot(null);
       return;
     }
 
-    setSelectedSlot(slotIdx);
-    const curMember = party.activeMembers[slotIdx];
-    if (curMember) {
-      setMessage(`枠${slotIdx + 1}【${curMember.name}】と入れ替える隊士を下から選んでください。`);
-    } else {
-      setMessage(`枠${slotIdx + 1}（空き）に配置する隊士を下から選んでください。`);
+    // If no slot is selected, this is 1st tap: select this slot
+    if (selectedSlot === null) {
+      SoundEngine.playCursor();
+      setSelectedSlot(slotIdx);
+      const curMember = party.activeMembers[slotIdx];
+      if (curMember) {
+        setMessage(`枠${slotIdx + 1}【${curMember.name}】を選択しました。別の枠をタップして位置を交代、または下の隊士をタップして交代できます。`);
+      } else {
+        setMessage(`枠${slotIdx + 1}（空き枠）を選択しました。下の隊士をタップすると配置されます。`);
+      }
+      return;
     }
+
+    // If the same slot is tapped again, unselect it
+    if (selectedSlot === slotIdx) {
+      SoundEngine.playCancel();
+      setSelectedSlot(null);
+      setMessage('枠の選択を解除しました。');
+      return;
+    }
+
+    // If a different slot is clicked (2nd tap between slots): SWAP them!
+    const memA = party.activeMembers[selectedSlot];
+    const memB = party.activeMembers[slotIdx];
+
+    if (slotIdx < party.activeMembers.length && selectedSlot < party.activeMembers.length) {
+      party.swapActiveSlots(selectedSlot, slotIdx);
+      SoundEngine.playConfirm();
+      setMessage(`枠${selectedSlot + 1}【${memA?.name}】と 枠${slotIdx + 1}【${memB?.name}】を入れ替えました！`);
+    } else if (memA && slotIdx >= party.activeMembers.length) {
+      // Move member A to the empty slot
+      party.replaceActiveMember(slotIdx, memA);
+      party.removeMemberFromActive(selectedSlot);
+      SoundEngine.playConfirm();
+      setMessage(`【${memA.name}】を枠${slotIdx + 1}に移動しました！`);
+    }
+
+    onFormationChanged?.();
+    setSelectedSlot(null);
   };
 
-  // Replace active slot with chosen character
-  const handleSelectCharacter = (character: Character) => {
-    SoundEngine.playLevelUp();
-    party.replaceActiveMember(selectedSlot, character);
-    onEncounter?.([character.id]);
-    onFormationChanged?.();
-    setMessage(`【${character.name}】を枠${selectedSlot + 1}に配属しました！`);
+  const handleCandidateClick = (character: Character) => {
+    // If an active slot is already selected (1st tap was a slot), 2nd tap on candidate replaces that slot!
+    if (selectedSlot !== null) {
+      party.replaceActiveMember(selectedSlot, character);
+      SoundEngine.playLevelUp();
+      onEncounter?.([character.id]);
+      onFormationChanged?.();
+      setMessage(`枠${selectedSlot + 1}に【${character.name}】を配属しました！`);
+      setSelectedSlot(null);
+      setSelectedCandidate(null);
+      return;
+    }
 
-    // Advance selected slot to next available or keep
-    const nextSlot = (selectedSlot + 1) % 4;
-    setSelectedSlot(nextSlot);
+    // If no slot was selected:
+    // If this candidate was already selected, unselect on 2nd tap
+    if (selectedCandidate?.id === character.id) {
+      SoundEngine.playCancel();
+      setSelectedCandidate(null);
+      setMessage('隊士の選択を解除しました。');
+      return;
+    }
+
+    // 1st tap: select candidate
+    SoundEngine.playCursor();
+    setSelectedCandidate(character);
+    setMessage(`【${character.name}】を選択中！上の出撃枠（枠1〜4）のいずれかをタップすると入れ替わります。`);
   };
 
   // Remove from active party
@@ -134,10 +187,82 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
     SoundEngine.playConfirm();
     party.removeMemberFromActive(slotIdx);
     setMessage(`【${target.name}】を前線から控えに下げました。`);
-    if (selectedSlot >= party.activeMembers.length) {
-      setSelectedSlot(Math.max(0, party.activeMembers.length - 1));
+    if (selectedSlot === slotIdx) {
+      setSelectedSlot(null);
     }
     onFormationChanged?.();
+  };
+
+  // --- Drag and Drop Handlers for Desktop / Touch ---
+
+  const handleDragStartSlot = (e: React.DragEvent, slotIdx: number) => {
+    setDraggedSlot(slotIdx);
+    setDraggedCandidate(null);
+    e.dataTransfer.setData('text/plain', `slot:${slotIdx}`);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragStartCandidate = (e: React.DragEvent, character: Character) => {
+    setDraggedCandidate(character);
+    setDraggedSlot(null);
+    e.dataTransfer.setData('text/plain', `char:${character.id}`);
+    e.dataTransfer.effectAllowed = 'copyMove';
+  };
+
+  const handleDragOver = (e: React.DragEvent, slotIdx: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverSlot !== slotIdx) {
+      setDragOverSlot(slotIdx);
+    }
+  };
+
+  const handleDragLeave = (slotIdx: number) => {
+    if (dragOverSlot === slotIdx) {
+      setDragOverSlot(null);
+    }
+  };
+
+  const handleDropOnSlot = (e: React.DragEvent, targetSlotIdx: number) => {
+    e.preventDefault();
+    setDragOverSlot(null);
+
+    // Dropped from another slot
+    if (draggedSlot !== null) {
+      if (draggedSlot === targetSlotIdx) {
+        setDraggedSlot(null);
+        return;
+      }
+      const memA = party.activeMembers[draggedSlot];
+      const memB = party.activeMembers[targetSlotIdx];
+
+      if (draggedSlot < party.activeMembers.length && targetSlotIdx < party.activeMembers.length) {
+        party.swapActiveSlots(draggedSlot, targetSlotIdx);
+        SoundEngine.playConfirm();
+        setMessage(`ドラッグで 枠${draggedSlot + 1}【${memA?.name}】と 枠${targetSlotIdx + 1}【${memB?.name}】を入れ替えました！`);
+      } else if (memA && targetSlotIdx >= party.activeMembers.length) {
+        party.replaceActiveMember(targetSlotIdx, memA);
+        party.removeMemberFromActive(draggedSlot);
+        SoundEngine.playConfirm();
+        setMessage(`ドラッグで【${memA.name}】を枠${targetSlotIdx + 1}へ移動しました！`);
+      }
+      onFormationChanged?.();
+      setDraggedSlot(null);
+      setSelectedSlot(null);
+      return;
+    }
+
+    // Dropped from candidate roster/catalog
+    if (draggedCandidate) {
+      party.replaceActiveMember(targetSlotIdx, draggedCandidate);
+      SoundEngine.playLevelUp();
+      onEncounter?.([draggedCandidate.id]);
+      onFormationChanged?.();
+      setMessage(`ドラッグで【${draggedCandidate.name}】を枠${targetSlotIdx + 1}に配属しました！`);
+      setDraggedCandidate(null);
+      setSelectedCandidate(null);
+      setSelectedSlot(null);
+    }
   };
 
   return (
@@ -149,10 +274,10 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
             <Users className="w-5 h-5 text-amber-400 animate-pulse" />
             <div>
               <h2 className="text-base sm:text-lg font-bold text-amber-300 flex items-center gap-2">
-                <span>鬼殺隊・部隊編成（好きな人と入れ替え）</span>
+                <span>鬼殺隊・部隊編成（入れ替え・ドラッグ対応）</span>
               </h2>
               <p className="text-[11px] text-slate-300">
-                前線で戦う4名をお好きな隊士に自由に入れ替えられます。
+                1タップ目で選択し、2タップ目で交代！ドラッグ＆ドロップでも簡単に入れ替えられます。
               </p>
             </div>
           </div>
@@ -170,22 +295,26 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
         </div>
 
         {/* Guidance / Status Message Bar */}
-        <div className="bg-amber-950/40 border-b border-amber-900/40 px-4 py-2 flex items-center gap-2 text-xs text-amber-200">
-          <Sparkles className="w-4 h-4 text-yellow-400 shrink-0 animate-spin" style={{ animationDuration: '4s' }} />
+        <div className="bg-amber-950/60 border-b border-amber-800/60 px-4 py-2 flex items-center gap-2 text-xs text-amber-200">
+          <Sparkles className="w-4 h-4 text-yellow-400 shrink-0" />
           <span className="font-bold">{message}</span>
         </div>
 
         {/* Scrollable Container */}
         <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
-          {/* 1. TOP: Current Active 4 Slots (Clear Visual Representation) */}
+          {/* 1. TOP: Current Active 4 Slots */}
           <div>
-            <div className="text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+            <div className="text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between flex-wrap gap-1">
               <span className="flex items-center gap-1.5">
                 <Shield className="w-3.5 h-3.5 text-cyan-400" />
-                <span>現在出撃中の前線部隊 (タップして枠を選択 / 枠同士で並び替え):</span>
+                <span>現在出撃中の前線部隊（タップで選択 / ドラッグで入れ替え）:</span>
               </span>
-              <span className="text-[10px] text-amber-400">
-                選択中の枠: 【枠 {selectedSlot + 1}】
+              <span className="text-[10px] text-amber-300 font-mono">
+                {selectedSlot !== null
+                  ? `👉 枠${selectedSlot + 1}を選択中（別の枠または下の隊士をタップで交代）`
+                  : selectedCandidate
+                  ? `👉 【${selectedCandidate.name}】を選択中（配置したい枠をタップ）`
+                  : '未選択（枠または隊士をタップ）'}
               </span>
             </div>
 
@@ -193,25 +322,34 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
               {[0, 1, 2, 3].map(slotIdx => {
                 const member = party.activeMembers[slotIdx];
                 const isSelected = selectedSlot === slotIdx;
+                const isDragOver = dragOverSlot === slotIdx;
 
                 return (
                   <div
                     key={slotIdx}
+                    draggable={!!member}
+                    onDragStart={(e) => handleDragStartSlot(e, slotIdx)}
+                    onDragOver={(e) => handleDragOver(e, slotIdx)}
+                    onDragLeave={() => handleDragLeave(slotIdx)}
+                    onDrop={(e) => handleDropOnSlot(e, slotIdx)}
                     onClick={() => handleSlotClick(slotIdx)}
-                    className={`relative p-2.5 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center text-center touch-manipulation ${
-                      isSelected
-                        ? 'bg-amber-950/80 border-amber-400 shadow-lg shadow-amber-500/20 scale-[1.02] ring-2 ring-amber-400/50'
+                    className={`relative p-2.5 rounded-lg border-2 cursor-pointer transition-all flex flex-col items-center text-center touch-manipulation select-none ${
+                      isDragOver
+                        ? 'bg-amber-800/80 border-yellow-300 scale-105 shadow-xl shadow-amber-500/50 ring-4 ring-yellow-400'
+                        : isSelected
+                        ? 'bg-amber-950/90 border-amber-400 shadow-lg shadow-amber-500/30 scale-[1.03] ring-2 ring-amber-400'
                         : member
-                        ? 'bg-slate-900/90 border-slate-700 hover:border-amber-500/60 hover:bg-slate-800'
+                        ? 'bg-slate-900/90 border-slate-700 hover:border-amber-500/70 hover:bg-slate-800'
                         : 'bg-slate-950 border-dashed border-slate-700 hover:border-slate-500'
                     }`}
                   >
-                    {/* Slot badge */}
+                    {/* Slot badge & Drag indicator */}
                     <div className="w-full flex items-center justify-between mb-1">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1 ${
                         isSelected ? 'bg-amber-500 text-black' : 'bg-slate-800 text-slate-300'
                       }`}>
-                        枠 {slotIdx + 1} {slotIdx === 0 ? '(先頭)' : ''}
+                        {member && <GripVertical className="w-3 h-3 text-slate-400" />}
+                        <span>枠 {slotIdx + 1} {slotIdx === 0 ? '(先頭)' : ''}</span>
                       </span>
 
                       {member && party.activeMembers.length > 1 && (
@@ -227,7 +365,14 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
 
                     {member ? (
                       <>
-                        <PixelSprite character={member} size={48} />
+                        <div className="relative">
+                          <PixelSprite character={member} size={48} />
+                          {isSelected && (
+                            <span className="absolute -top-1 -right-1 bg-amber-400 text-black text-[9px] font-extrabold px-1 rounded-full animate-bounce">
+                              選択中
+                            </span>
+                          )}
+                        </div>
                         <div className="font-bold text-xs text-white mt-1 truncate max-w-full">
                           {member.name}
                         </div>
@@ -245,16 +390,20 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
                           <div>防: <span className="text-blue-400">{member.stats.defense}</span></div>
                         </div>
 
-                        <div className="mt-1.5 w-full text-[10px] py-0.5 rounded font-bold flex items-center justify-center gap-1 border border-amber-500/40 bg-amber-900/30 text-amber-200">
+                        <div className={`mt-1.5 w-full text-[10px] py-0.5 rounded font-bold flex items-center justify-center gap-1 border transition-colors ${
+                          isSelected
+                            ? 'bg-amber-500 text-black border-amber-300'
+                            : 'border-amber-500/40 bg-amber-900/30 text-amber-200'
+                        }`}>
                           <ArrowRightLeft className="w-3 h-3" />
-                          <span>交代する</span>
+                          <span>{isSelected ? '1タップ目: 選択中' : 'タップで選択'}</span>
                         </div>
                       </>
                     ) : (
                       <div className="py-6 flex flex-col items-center justify-center text-slate-500">
                         <UserPlus className="w-6 h-6 mb-1 text-slate-600" />
                         <span className="text-xs font-bold">空き枠</span>
-                        <span className="text-[9px] mt-0.5 text-amber-400/80">下から選んで配置</span>
+                        <span className="text-[9px] mt-0.5 text-amber-400/80">タップまたはドロップで配置</span>
                       </div>
                     )}
                   </div>
@@ -366,27 +515,49 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
               </div>
             )}
 
+            {/* Hint bar */}
+            <div className="text-[11px] text-slate-400 flex items-center justify-between">
+              <span>隊士をタップして選択、または上の枠へ直接ドラッグして入れ替えてください:</span>
+              {selectedCandidate && (
+                <span className="text-amber-400 font-bold">
+                  【{selectedCandidate.name}】選択中 → 上の枠をタップで配属
+                </span>
+              )}
+            </div>
+
             {/* List of Characters to Pick */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
               {(activeTab === 'roster' ? party.roster : filteredCatalog).map(character => {
                 const isActive = party.activeMembers.some(m => m.id === character.id);
                 const activeIndex = party.activeMembers.findIndex(m => m.id === character.id);
-                const isSelectedForSlot = party.activeMembers[selectedSlot]?.id === character.id;
+                const isCandidateSelected = selectedCandidate?.id === character.id;
+                const isSlotSelectedForChar = selectedSlot !== null && party.activeMembers[selectedSlot]?.id === character.id;
 
                 return (
                   <div
                     key={character.id}
-                    onClick={() => handleSelectCharacter(character)}
-                    className={`p-2 rounded-lg border flex items-center justify-between gap-2 cursor-pointer transition-all touch-manipulation ${
-                      isSelectedForSlot
-                        ? 'bg-amber-950/70 border-amber-400 ring-1 ring-amber-400'
+                    draggable={true}
+                    onDragStart={(e) => handleDragStartCandidate(e, character)}
+                    onClick={() => handleCandidateClick(character)}
+                    className={`p-2 rounded-lg border flex items-center justify-between gap-2 cursor-pointer transition-all touch-manipulation select-none ${
+                      isCandidateSelected
+                        ? 'bg-amber-950 border-amber-400 ring-2 ring-amber-400 scale-[1.02]'
+                        : isSlotSelectedForChar
+                        ? 'bg-amber-950/70 border-amber-400/80 ring-1 ring-amber-400'
                         : isActive
                         ? 'bg-indigo-950/50 border-indigo-500/70 hover:bg-indigo-900/60'
                         : 'bg-slate-900/90 border-slate-700 hover:border-amber-500/80 hover:bg-slate-800'
                     }`}
                   >
                     <div className="flex items-center gap-2 overflow-hidden">
-                      <PixelSprite character={character} size={38} />
+                      <div className="relative">
+                        <PixelSprite character={character} size={38} />
+                        {isCandidateSelected && (
+                          <span className="absolute -top-1 -right-1 bg-amber-400 text-black text-[8px] font-extrabold px-1 rounded-full animate-bounce">
+                            選
+                          </span>
+                        )}
+                      </div>
                       <div className="truncate">
                         <div className="font-bold text-xs text-white truncate flex items-center gap-1">
                           <span>{character.name}</span>
@@ -413,16 +584,20 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
                           <Check className="w-3 h-3" />
                           <span>枠 {activeIndex + 1}</span>
                         </span>
+                      ) : isCandidateSelected ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-amber-500 text-black flex items-center gap-1 animate-pulse">
+                          <span>上の枠をタップ</span>
+                        </span>
                       ) : (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleSelectCharacter(character);
+                            handleCandidateClick(character);
                           }}
-                          className="text-[10px] px-2.5 py-1 rounded font-bold bg-amber-600 hover:bg-amber-500 text-white border border-amber-300 shadow-sm flex items-center gap-1"
+                          className="text-[10px] px-2 py-1 rounded font-bold bg-amber-600 hover:bg-amber-500 text-white border border-amber-300 shadow-sm flex items-center gap-1"
                         >
                           <ArrowRightLeft className="w-3 h-3" />
-                          <span>枠{selectedSlot + 1}へ</span>
+                          <span>{selectedSlot !== null ? `枠${selectedSlot + 1}へ` : '選択する'}</span>
                         </button>
                       )}
                     </div>

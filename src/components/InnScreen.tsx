@@ -12,7 +12,7 @@ import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
 import { PartyFormationModal } from './PartyFormationModal.tsx';
-import { Bed, UserPlus, Users, ShoppingBag, CheckCircle, ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
+import { Bed, UserPlus, Users, ShoppingBag, CheckCircle, ArrowRight, ArrowRightLeft, Sparkles, GripVertical } from 'lucide-react';
 
 interface InnScreenProps {
   party: PartyAggregate;
@@ -33,7 +33,11 @@ export const InnScreen: React.FC<InnScreenProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<InnTab>(initialMessage ? 'rest' : 'rest');
   const [isFormationModalOpen, setIsFormationModalOpen] = useState<boolean>(false);
-  const [selectedSlot, setSelectedSlot] = useState<number>(0);
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Character | null>(null);
+  const [draggedSlot, setDraggedSlot] = useState<number | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
+  const [draggedCandidate, setDraggedCandidate] = useState<Character | null>(null);
   const [, setRerenderToggle] = useState<number>(0);
   const [dialogue, setDialogue] = useState<string>(
     initialMessage ||
@@ -296,44 +300,143 @@ export const InnScreen: React.FC<InnScreenProps> = ({
             </div>
 
             {/* Current Active 4 Slots */}
-            <div className="text-[11px] font-bold text-amber-300 mb-1 flex items-center justify-between">
-              <span>出撃部隊（タップして枠を選択 / 枠同士で並び替え）:</span>
-              <span className="text-slate-300">選択中: 【枠 {selectedSlot + 1}】</span>
+            <div className="text-[11px] font-bold text-amber-300 mb-1 flex items-center justify-between flex-wrap gap-1">
+              <span>出撃部隊（タップで選択 / ドラッグで入れ替え）:</span>
+              <span className="text-slate-300 font-mono text-[10px]">
+                {selectedSlot !== null
+                  ? `👉 枠${selectedSlot + 1}を選択中（別の枠または下の隊士をタップして交代）`
+                  : selectedCandidate
+                  ? `👉 【${selectedCandidate.name}】を選択中（配置したい枠をタップ）`
+                  : '未選択（1タップ目で枠または隊士を選択）'}
+              </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
               {[0, 1, 2, 3].map(slotIdx => {
                 const member = party.activeMembers[slotIdx];
                 const isSelected = selectedSlot === slotIdx;
+                const isDragOver = dragOverSlot === slotIdx;
 
                 return (
                   <div
                     key={slotIdx}
-                    onClick={() => {
-                      SoundEngine.playCursor();
-                      if (selectedSlot !== slotIdx && slotIdx < party.activeMembers.length && selectedSlot < party.activeMembers.length) {
-                        party.swapActiveSlots(selectedSlot, slotIdx);
-                        SoundEngine.playConfirm();
-                        setDialogue(`部隊の並び順（前衛・後衛）を入れ替えました！`);
+                    draggable={!!member}
+                    onDragStart={(e) => {
+                      setDraggedSlot(slotIdx);
+                      setDraggedCandidate(null);
+                      e.dataTransfer.setData('text/plain', `slot:${slotIdx}`);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverSlot !== slotIdx) setDragOverSlot(slotIdx);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverSlot === slotIdx) setDragOverSlot(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverSlot(null);
+                      if (draggedSlot !== null) {
+                        if (draggedSlot === slotIdx) {
+                          setDraggedSlot(null);
+                          return;
+                        }
+                        const memA = party.activeMembers[draggedSlot];
+                        const memB = party.activeMembers[slotIdx];
+                        if (draggedSlot < party.activeMembers.length && slotIdx < party.activeMembers.length) {
+                          party.swapActiveSlots(draggedSlot, slotIdx);
+                          SoundEngine.playConfirm();
+                          setDialogue(`ドラッグで枠${draggedSlot + 1}【${memA?.name}】と 枠${slotIdx + 1}【${memB?.name}】を入れ替えました！`);
+                        } else if (memA && slotIdx >= party.activeMembers.length) {
+                          party.replaceActiveMember(slotIdx, memA);
+                          party.removeMemberFromActive(draggedSlot);
+                          SoundEngine.playConfirm();
+                          setDialogue(`ドラッグで【${memA.name}】を枠${slotIdx + 1}へ移動しました！`);
+                        }
+                        setDraggedSlot(null);
+                        setSelectedSlot(null);
                         setRerenderToggle(v => v + 1);
-                        setSelectedSlot(slotIdx);
                         return;
                       }
-                      setSelectedSlot(slotIdx);
+                      if (draggedCandidate) {
+                        party.replaceActiveMember(slotIdx, draggedCandidate);
+                        SoundEngine.playLevelUp();
+                        onEncounter?.([draggedCandidate.id]);
+                        setDialogue(`ドラッグで【${draggedCandidate.name}】を枠${slotIdx + 1}に配属しました！`);
+                        setDraggedCandidate(null);
+                        setSelectedCandidate(null);
+                        setSelectedSlot(null);
+                        setRerenderToggle(v => v + 1);
+                      }
                     }}
-                    className={`p-2 rounded border-2 cursor-pointer transition-all flex flex-col items-center text-center touch-manipulation ${
-                      isSelected
-                        ? 'bg-amber-950/80 border-amber-400 shadow-md scale-[1.02] ring-2 ring-amber-400/50'
+                    onClick={() => {
+                      // If a candidate from bottom is already selected, 2nd tap on slot replaces!
+                      if (selectedCandidate) {
+                        party.replaceActiveMember(slotIdx, selectedCandidate);
+                        SoundEngine.playLevelUp();
+                        onEncounter?.([selectedCandidate.id]);
+                        setDialogue(`【${selectedCandidate.name}】を枠${slotIdx + 1}に配属しました！`);
+                        setSelectedCandidate(null);
+                        setSelectedSlot(null);
+                        setRerenderToggle(v => v + 1);
+                        return;
+                      }
+
+                      // 1st tap: select slot
+                      if (selectedSlot === null) {
+                        SoundEngine.playCursor();
+                        setSelectedSlot(slotIdx);
+                        const curMember = party.activeMembers[slotIdx];
+                        if (curMember) {
+                          setDialogue(`枠${slotIdx + 1}【${curMember.name}】を選択しました。別の枠をタップして入れ替え、または下の隊士をタップしてください。`);
+                        } else {
+                          setDialogue(`枠${slotIdx + 1}（空き）を選択しました。下の隊士をタップすると配置されます。`);
+                        }
+                        return;
+                      }
+
+                      // 2nd tap on the same slot: unselect
+                      if (selectedSlot === slotIdx) {
+                        SoundEngine.playCancel();
+                        setSelectedSlot(null);
+                        setDialogue('枠の選択を解除しました。');
+                        return;
+                      }
+
+                      // 2nd tap on a different slot: SWAP!
+                      const memA = party.activeMembers[selectedSlot];
+                      const memB = party.activeMembers[slotIdx];
+                      if (slotIdx < party.activeMembers.length && selectedSlot < party.activeMembers.length) {
+                        party.swapActiveSlots(selectedSlot, slotIdx);
+                        SoundEngine.playConfirm();
+                        setDialogue(`枠${selectedSlot + 1}【${memA?.name}】と 枠${slotIdx + 1}【${memB?.name}】を入れ替えました！`);
+                      } else if (memA && slotIdx >= party.activeMembers.length) {
+                        party.replaceActiveMember(slotIdx, memA);
+                        party.removeMemberFromActive(selectedSlot);
+                        SoundEngine.playConfirm();
+                        setDialogue(`【${memA.name}】を枠${slotIdx + 1}に移動しました！`);
+                      }
+                      setRerenderToggle(v => v + 1);
+                      setSelectedSlot(null);
+                    }}
+                    className={`p-2 rounded border-2 cursor-pointer transition-all flex flex-col items-center text-center touch-manipulation select-none ${
+                      isDragOver
+                        ? 'bg-amber-800/80 border-yellow-300 scale-105 shadow-lg ring-4 ring-yellow-400'
+                        : isSelected
+                        ? 'bg-amber-950/90 border-amber-400 shadow-md scale-[1.03] ring-2 ring-amber-400/70'
                         : member
-                        ? 'bg-slate-900 border-slate-700 hover:border-amber-500/60'
+                        ? 'bg-slate-900 border-slate-700 hover:border-amber-500/60 hover:bg-slate-800'
                         : 'bg-slate-950 border-dashed border-slate-700'
                     }`}
                   >
                     <div className="w-full flex items-center justify-between mb-1">
-                      <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
+                      <span className={`text-[9px] px-1 py-0.2 rounded font-bold flex items-center gap-0.5 ${
                         isSelected ? 'bg-amber-500 text-black' : 'bg-slate-800 text-slate-400'
                       }`}>
-                        枠 {slotIdx + 1}
+                        {member && <GripVertical className="w-2.5 h-2.5 text-slate-400" />}
+                        <span>枠 {slotIdx + 1}</span>
                       </span>
                       {member && party.activeMembers.length > 1 && (
                         <button
@@ -342,6 +445,7 @@ export const InnScreen: React.FC<InnScreenProps> = ({
                             party.removeMemberFromActive(slotIdx);
                             SoundEngine.playConfirm();
                             setDialogue(`${member.name} を控えに下げました。`);
+                            if (selectedSlot === slotIdx) setSelectedSlot(null);
                             setRerenderToggle(v => v + 1);
                           }}
                           className="text-[9px] px-1 text-red-300 hover:text-red-100 bg-red-950/60 rounded border border-red-800/60"
@@ -353,17 +457,28 @@ export const InnScreen: React.FC<InnScreenProps> = ({
 
                     {member ? (
                       <>
-                        <PixelSprite character={member} size={38} />
+                        <div className="relative">
+                          <PixelSprite character={member} size={38} />
+                          {isSelected && (
+                            <span className="absolute -top-1 -right-1 bg-amber-400 text-black text-[8px] font-extrabold px-1 rounded-full animate-bounce">
+                              選択中
+                            </span>
+                          )}
+                        </div>
                         <span className="text-xs font-bold text-white mt-1 truncate max-w-full">{member.name}</span>
                         <span className="text-[10px] text-amber-300">Lv.{member.level} / {member.rank}</span>
                         <span className="text-[9px] text-cyan-300 truncate max-w-full">{member.breathStyle}</span>
-                        <div className="mt-1 text-[9px] text-amber-200 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800 flex items-center gap-1">
+                        <div className={`mt-1 text-[9px] px-1.5 py-0.5 rounded border flex items-center gap-1 transition-colors ${
+                          isSelected
+                            ? 'bg-amber-500 text-black border-amber-300 font-bold'
+                            : 'bg-amber-950/60 text-amber-200 border-amber-800'
+                        }`}>
                           <ArrowRightLeft className="w-2.5 h-2.5" />
-                          <span>交代する</span>
+                          <span>{isSelected ? '1タップ目: 選択中' : 'タップで選択'}</span>
                         </div>
                       </>
                     ) : (
-                      <span className="text-xs text-slate-500 py-6">空き（配置可能）</span>
+                      <span className="text-xs text-slate-500 py-6">空き（タップ/ドロップで配置）</span>
                     )}
                   </div>
                 );
@@ -371,8 +486,8 @@ export const InnScreen: React.FC<InnScreenProps> = ({
             </div>
 
             {/* Roster Pool to swap from */}
-            <div className="text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
-              <span>所属隊士一覧（タップすると【枠 {selectedSlot + 1}】に配置）:</span>
+            <div className="text-xs font-bold text-slate-300 mb-1 flex items-center justify-between flex-wrap gap-1">
+              <span>所属隊士一覧（1タップで選択 / 枠へ直接ドラッグ可能）:</span>
               <button
                 onClick={() => setIsFormationModalOpen(true)}
                 className="text-[11px] text-yellow-300 hover:underline flex items-center gap-1"
@@ -386,23 +501,64 @@ export const InnScreen: React.FC<InnScreenProps> = ({
               {party.roster.map(member => {
                 const isActive = party.activeMembers.some(m => m.id === member.id);
                 const activeIdx = party.activeMembers.findIndex(m => m.id === member.id);
+                const isCandidateSelected = selectedCandidate?.id === member.id;
+                const isSlotSelectedForChar = selectedSlot !== null && party.activeMembers[selectedSlot]?.id === member.id;
 
                 return (
                   <div
                     key={member.id}
-                    onClick={() => {
-                      SoundEngine.playLevelUp();
-                      party.replaceActiveMember(selectedSlot, member);
-                      setDialogue(`【${member.name}】を枠${selectedSlot + 1}に配属しました！`);
-                      setRerenderToggle(v => v + 1);
-                      setSelectedSlot((selectedSlot + 1) % 4);
+                    draggable={true}
+                    onDragStart={(e) => {
+                      setDraggedCandidate(member);
+                      setDraggedSlot(null);
+                      e.dataTransfer.setData('text/plain', `char:${member.id}`);
+                      e.dataTransfer.effectAllowed = 'copyMove';
                     }}
-                    className={`p-1.5 rounded border flex items-center justify-between text-xs cursor-pointer transition-colors ${
-                      isActive ? 'bg-indigo-950/60 border-indigo-500/80 hover:bg-indigo-900/60' : 'bg-slate-900 border-slate-700 hover:border-amber-500/60 hover:bg-slate-800'
+                    onClick={() => {
+                      // If slot is already selected, 2nd tap on candidate replaces that slot!
+                      if (selectedSlot !== null) {
+                        party.replaceActiveMember(selectedSlot, member);
+                        SoundEngine.playLevelUp();
+                        onEncounter?.([member.id]);
+                        setDialogue(`【${member.name}】を枠${selectedSlot + 1}に配属しました！`);
+                        setSelectedSlot(null);
+                        setSelectedCandidate(null);
+                        setRerenderToggle(v => v + 1);
+                        return;
+                      }
+
+                      // If candidate already selected, unselect
+                      if (selectedCandidate?.id === member.id) {
+                        SoundEngine.playCancel();
+                        setSelectedCandidate(null);
+                        setDialogue('隊士の選択を解除しました。');
+                        return;
+                      }
+
+                      // 1st tap on candidate
+                      SoundEngine.playCursor();
+                      setSelectedCandidate(member);
+                      setDialogue(`【${member.name}】を選択しました。上の枠1〜4をタップして配属してください。`);
+                    }}
+                    className={`p-1.5 rounded border flex items-center justify-between text-xs cursor-pointer transition-colors select-none ${
+                      isCandidateSelected
+                        ? 'bg-amber-950 border-amber-400 ring-2 ring-amber-400'
+                        : isSlotSelectedForChar
+                        ? 'bg-amber-950/70 border-amber-400/80 ring-1 ring-amber-400'
+                        : isActive
+                        ? 'bg-indigo-950/60 border-indigo-500/80 hover:bg-indigo-900/60'
+                        : 'bg-slate-900 border-slate-700 hover:border-amber-500/60 hover:bg-slate-800'
                     }`}
                   >
                     <div className="flex items-center gap-2 overflow-hidden">
-                      <PixelSprite character={member} size={30} />
+                      <div className="relative">
+                        <PixelSprite character={member} size={30} />
+                        {isCandidateSelected && (
+                          <span className="absolute -top-1 -right-1 bg-amber-400 text-black text-[7px] font-extrabold px-1 rounded-full animate-bounce">
+                            選
+                          </span>
+                        )}
+                      </div>
                       <div className="truncate">
                         <div className="font-bold text-white truncate flex items-center gap-1">
                           <span>{member.name}</span>
@@ -419,19 +575,31 @@ export const InnScreen: React.FC<InnScreenProps> = ({
                         <span className="text-[10px] px-2 py-0.5 bg-indigo-600 rounded text-white font-bold">
                           枠 {activeIdx + 1}
                         </span>
+                      ) : isCandidateSelected ? (
+                        <span className="text-[10px] px-2 py-0.5 bg-amber-500 rounded text-black font-bold animate-pulse">
+                          枠をタップ
+                        </span>
                       ) : (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            SoundEngine.playLevelUp();
-                            party.replaceActiveMember(selectedSlot, member);
-                            setDialogue(`【${member.name}】を枠${selectedSlot + 1}に配属しました！`);
-                            setRerenderToggle(v => v + 1);
-                            setSelectedSlot((selectedSlot + 1) % 4);
+                            if (selectedSlot !== null) {
+                              party.replaceActiveMember(selectedSlot, member);
+                              SoundEngine.playLevelUp();
+                              onEncounter?.([member.id]);
+                              setDialogue(`【${member.name}】を枠${selectedSlot + 1}に配属しました！`);
+                              setSelectedSlot(null);
+                              setSelectedCandidate(null);
+                              setRerenderToggle(v => v + 1);
+                            } else {
+                              SoundEngine.playCursor();
+                              setSelectedCandidate(member);
+                              setDialogue(`【${member.name}】を選択しました。上の枠1〜4をタップして配属してください。`);
+                            }
                           }}
                           className="text-[10px] px-2 py-0.5 bg-amber-600 hover:bg-amber-500 rounded text-white font-bold border border-amber-300"
                         >
-                          枠{selectedSlot + 1}へ
+                          {selectedSlot !== null ? `枠${selectedSlot + 1}へ` : '選択'}
                         </button>
                       )}
                     </div>
