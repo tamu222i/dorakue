@@ -17,7 +17,7 @@ interface BattleScreenProps {
   party: PartyAggregate;
   enemy: Character;
   isBoss: boolean;
-  onVictory: (expGained: number, moneyGained: number) => void;
+  onVictory: (expGained: number, moneyGained: number, leveledUp: { name: string; newLevel: number }[]) => void;
   onEscape: () => void;
   onWipeout: () => void;
 }
@@ -212,7 +212,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
       await delay(1200);
       setIsProcessingTurn(false);
-      onVictory(expReward, moneyReward);
+      onVictory(expReward, moneyReward, leveledUp);
       return;
     }
 

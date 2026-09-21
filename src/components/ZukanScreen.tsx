@@ -9,7 +9,7 @@ import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { Search, ArrowLeft, Filter, Sparkles, Book, Eye, EyeOff } from 'lucide-react';
+import { Search, ArrowLeft, Filter, Sparkles, Book, Eye, EyeOff, Users } from 'lucide-react';
 
 interface ZukanScreenProps {
   catalog: Character[];
@@ -27,14 +27,21 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'slayer' | 'demon' | 'hashira' | 'kizuki'>('all');
   const [breathFilter, setBreathFilter] = useState<string>('all');
-  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'encountered_only'>('all');
+  // 'recruited_only' (ユーザー要望: 仲間にしたものだけ表示), 'encountered_only', 'all'
+  const [visibilityFilter, setVisibilityFilter] = useState<'recruited_only' | 'encountered_only' | 'all'>('recruited_only');
   const [selectedCharacter, setSelectedCharacter] = useState<Character>(() => {
-    // Select first encountered or first in catalog
+    // Select first recruited, then first encountered, or first in catalog
+    const firstRecruited = catalog.find(c => partyRosterIds.has(c.id));
+    if (firstRecruited) return firstRecruited;
     const firstEncountered = catalog.find(c => encounteredIds.has(c.id));
     return firstEncountered || catalog[0];
   });
 
-  // Calculate encounter metrics
+  // Calculate metrics
+  const recruitedCount = useMemo(() => {
+    return catalog.filter(c => partyRosterIds.has(c.id)).length;
+  }, [catalog, partyRosterIds]);
+
   const encounteredCount = useMemo(() => {
     return catalog.filter(c => encounteredIds.has(c.id)).length;
   }, [catalog, encounteredIds]);
@@ -45,10 +52,13 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
   const filteredList = useMemo(() => {
     return catalog.filter(c => {
       const isEncountered = encounteredIds.has(c.id);
+      const isRecruited = partyRosterIds.has(c.id);
 
       // Visibility filter
-      if (visibilityFilter === 'encountered_only' && !isEncountered) {
-        return false;
+      if (visibilityFilter === 'recruited_only') {
+        if (!isRecruited) return false;
+      } else if (visibilityFilter === 'encountered_only') {
+        if (!isEncountered) return false;
       }
 
       // Search (only search real name if encountered, or search No.)
@@ -74,7 +84,7 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
 
       return true;
     });
-  }, [catalog, searchTerm, roleFilter, breathFilter, visibilityFilter, encounteredIds]);
+  }, [catalog, searchTerm, roleFilter, breathFilter, visibilityFilter, encounteredIds, partyRosterIds]);
 
   const isSelectedEncountered = encounteredIds.has(selectedCharacter.id);
   const isSelectedRecruited = partyRosterIds.has(selectedCharacter.id);
@@ -92,7 +102,7 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
               </span>
             </h2>
             <p className="text-xs text-slate-300">
-              <FuriganaText text="遭遇[そうぐう]したキャラクターの姿[すがた]や情報[じょうほう]が解禁[かいきん]されます。未遭遇[みそうぐう]の者[もの]は謎[なぞ]の影[かげ]として記録[きろく]されます。" />
+              <FuriganaText text="戦闘[せんとう]・隊[たい]士[し]のレベルアップ・宿屋[やどや]での勧誘[かんゆう]で新[あら]たな鬼[おに]や仲間[なかま]が図鑑[ずかん]に追加[ついか]されます！" />
             </p>
           </div>
 
@@ -110,18 +120,28 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
 
         {/* Discovery Progress Meter */}
         <div className="mt-2.5 pt-2 border-t border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-amber-300 font-bold">
-              <FuriganaText text="図鑑[ずかん]解禁[かいきん]率[りつ]:" />
-            </span>
-            <span className="font-mono text-yellow-400 font-bold">
-              {encounteredCount} / {catalog.length} 体 ({encounterRate}%)
-            </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-emerald-300 font-bold">
+                <FuriganaText text="確実[かくじつ]な仲間[なかま]:" />
+              </span>
+              <span className="font-mono text-emerald-400 font-bold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-700">
+                {recruitedCount} 名
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-amber-300 font-bold">
+                <FuriganaText text="遭遇[そうぐう]・撃破[げきは]数[すう]:" />
+              </span>
+              <span className="font-mono text-yellow-400 font-bold">
+                {encounteredCount} / {catalog.length} 体 ({encounterRate}%)
+              </span>
+            </div>
           </div>
 
           <div className="w-full sm:w-64 bg-slate-900 border border-slate-700 h-2.5 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-all duration-500"
+              className="h-full bg-gradient-to-r from-emerald-500 via-amber-500 to-yellow-300 transition-all duration-500"
               style={{ width: `${Math.min(100, (encounteredCount / catalog.length) * 100)}%` }}
             />
           </div>
@@ -136,37 +156,60 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
             <input
               type="text"
-              placeholder="遭遇済みの隊士名・鬼名、または図鑑番号で検索"
+              placeholder="隊士名・鬼名、または図鑑番号で検索"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full bg-slate-900 border border-slate-700 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
             />
           </div>
 
-          {/* Visibility Toggle: All vs Encountered Only */}
-          <button
-            onClick={() => {
-              SoundEngine.playCursor();
-              setVisibilityFilter(prev => (prev === 'all' ? 'encountered_only' : 'all'));
-            }}
-            className={`px-3 py-1.5 rounded border text-xs font-bold flex items-center gap-1.5 transition-colors ${
-              visibilityFilter === 'encountered_only'
-                ? 'bg-emerald-700 border-emerald-400 text-white'
-                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            {visibilityFilter === 'encountered_only' ? (
-              <>
-                <Eye className="w-3.5 h-3.5 text-emerald-300" />
-                <span>遭遇済みのみ表示</span>
-              </>
-            ) : (
-              <>
-                <EyeOff className="w-3.5 h-3.5 text-amber-300" />
-                <span>全200種表示（影含む）</span>
-              </>
-            )}
-          </button>
+          {/* Visibility Toggle: 仲間のみ (Recruited only) vs 遭遇済み (Encountered only) vs 全種 (All) */}
+          <div className="flex rounded border border-slate-700 overflow-hidden text-xs">
+            <button
+              onClick={() => {
+                SoundEngine.playCursor();
+                setVisibilityFilter('recruited_only');
+              }}
+              className={`px-2.5 py-1.5 font-bold flex items-center gap-1 transition-colors ${
+                visibilityFilter === 'recruited_only'
+                  ? 'bg-emerald-700 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-emerald-300" />
+              <span>仲間のみ ({recruitedCount})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                SoundEngine.playCursor();
+                setVisibilityFilter('encountered_only');
+              }}
+              className={`px-2.5 py-1.5 font-bold flex items-center gap-1 transition-colors border-l border-slate-700 ${
+                visibilityFilter === 'encountered_only'
+                  ? 'bg-amber-700 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5 text-amber-300" />
+              <span>遭遇済 ({encounteredCount})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                SoundEngine.playCursor();
+                setVisibilityFilter('all');
+              }}
+              className={`px-2.5 py-1.5 font-bold flex items-center gap-1 transition-colors border-l border-slate-700 ${
+                visibilityFilter === 'all'
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+              }`}
+            >
+              <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+              <span>全種</span>
+            </button>
+          </div>
 
           {/* Role Filters */}
           <div className="flex flex-wrap gap-1 text-[11px]">
@@ -247,14 +290,27 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
                     SoundEngine.playCursor();
                     setSelectedCharacter(char);
                   }}
-                  className={`p-1.5 rounded border flex flex-col items-center justify-between text-center transition-all ${
+                  className={`p-1.5 rounded border flex flex-col items-center justify-between text-center transition-all relative ${
                     isSelected
                       ? 'border-amber-400 bg-amber-950/50 ring-2 ring-amber-400 shadow'
-                      : 'border-slate-800 bg-slate-900/90 hover:bg-slate-800'
+                      : isEncountered
+                      ? 'border-slate-700 bg-slate-900/90 hover:bg-slate-800'
+                      : 'border-slate-800/80 bg-slate-950/90 hover:bg-slate-900 opacity-60'
                   }`}
                 >
-                  <div className="text-[9px] font-mono text-slate-500">
-                    No.{String(char.catalogNo).padStart(3, '0')}
+                  <div className="flex items-center justify-between w-full px-0.5">
+                    <span className="text-[9px] font-mono text-slate-400">
+                      No.{String(char.catalogNo).padStart(3, '0')}
+                    </span>
+                    {recruited ? (
+                      <span className="text-[8px] bg-emerald-500 text-slate-950 px-1 rounded font-bold shadow-sm animate-pulse">
+                        仲間
+                      </span>
+                    ) : isEncountered ? (
+                      <span className="text-[8px] bg-amber-500/80 text-slate-950 px-1 rounded font-medium">
+                        遭遇
+                      </span>
+                    ) : null}
                   </div>
 
                   {/* High Definition 32x32 sprite (silhouette if unencountered) */}
@@ -265,11 +321,11 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
                     className="my-1"
                   />
 
-                  <div className="text-[10px] font-bold truncate w-full text-slate-200">
+                  <div className={`text-[10px] font-bold truncate w-full ${isEncountered ? 'text-slate-200' : 'text-slate-500'}`}>
                     {isEncountered ? char.name : '？？？？？'}
                   </div>
-                  <div className="text-[8px] text-slate-400 truncate w-full">
-                    {isEncountered ? char.rank : '？？？'}
+                  <div className={`text-[8px] truncate w-full ${isEncountered ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {isEncountered ? char.rank : '未遭遇'}
                   </div>
                 </button>
               );

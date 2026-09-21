@@ -95,7 +95,7 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
         </div>
 
         {/* Chapter Carousel / Selector */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-1.5 mt-3">
+        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5 mt-3">
           {STORY_CHAPTERS.map((ch, idx) => {
             const unlocked = idx <= currentChapterIndex;
             const completed = idx < currentChapterIndex;

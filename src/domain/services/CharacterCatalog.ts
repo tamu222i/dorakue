@@ -379,6 +379,30 @@ const SKILLS: Record<string, Skill> = {
     effectType: 'damage',
     description: '夜の静寂を切り裂く不気味な咆哮で精神を威圧する。',
     animation: 'blood_dark'
+  },
+  demon_tanjiro_blood_sun: {
+    id: 'sk_demon_tanjiro_sun',
+    name: '血鬼・日天陽光弾',
+    katagaki: '鬼の王・陽光克服',
+    breathStyle: 'sun',
+    bpCost: 25,
+    power: 160,
+    target: 'all',
+    effectType: 'damage',
+    description: '太陽の光を完全に克服した鬼の王の口から放たれる高熱の衝撃波弾。',
+    animation: 'sun_burst'
+  },
+  demon_tanjiro_spine_whips: {
+    id: 'sk_demon_tanjiro_whips',
+    name: '背骨触手乱舞',
+    katagaki: '鬼の王の異形化',
+    breathStyle: 'blood',
+    bpCost: 20,
+    power: 150,
+    target: 'all',
+    effectType: 'damage',
+    description: '背中から突き出した無数の骨の管と触手で全方位を無慈悲に薙ぎ払う。',
+    animation: 'beast_fangs'
   }
 };
 
@@ -1178,6 +1202,30 @@ const CANON_DEMONS: Omit<Character, 'catalogNo'>[] = [
     skills: [SKILLS.blood_moon_slashes, SKILLS.blood_muzan_shockwave],
     spriteConfig: { hairColor: '#09090b', skinColor: '#f1f5f9', eyeColor: '#dc2626', haoriColor: '#18181b', haoriPattern: 'solid_black', hasHorn: true, accentColor: '#991b1b' },
     lore: '千年以上生き続ける全ての鬼の始祖。無限城にて鬼殺隊全戦力と激突。圧倒的な細胞破壊と触手で蹂躙する。',
+    isUnlocked: false
+  },
+  {
+    id: 'demon_tanjiro',
+    name: '鬼化・竈門炭治郎',
+    title: '鬼の王・陽光を克服せし最凶の鬼',
+    role: 'demon',
+    rank: '鬼の始祖',
+    breathStyle: 'sun',
+    level: 50,
+    exp: 0,
+    nextExp: 0,
+    stats: { maxHp: 1500, hp: 1500, maxBp: 350, bp: 350, attack: 85, defense: 60, speed: 75, luck: 35 },
+    skills: [SKILLS.demon_tanjiro_blood_sun, SKILLS.demon_tanjiro_spine_whips, SKILLS.hinokami_clear_sky],
+    spriteConfig: {
+      hairColor: '#3b0764',
+      skinColor: '#cbd5e1',
+      eyeColor: '#ef4444',
+      haoriColor: '#059669',
+      haoriPattern: 'checker_green',
+      hasHorn: true,
+      accentColor: '#dc2626'
+    },
+    lore: '無惨の全ての血と力、想いを注ぎ込まれて鬼の王へと変貌した炭治郎。陽の光を克服し、日輪刀の斬撃さえ通用しない。仲間たちの命懸けの呼びかけと人間に戻す薬だけが救いとなる。',
     isUnlocked: false
   }
 ];

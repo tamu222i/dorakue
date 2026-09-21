@@ -118,9 +118,9 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
         </div>
       </DqFrame>
 
-      {/* Main Chapter Progression Bar (8 Canon Chapters) */}
-      <DqFrame title="原作ストーリー討伐進行（全8章）" className="p-3">
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-1.5 text-center text-xs">
+      {/* Main Chapter Progression Bar (全9章・最終隠しステージ対応) */}
+      <DqFrame title="原作ストーリー討伐進行（全9章・最終隠しステージ）" className="p-3">
+        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5 text-center text-xs">
           {STORY_CHAPTERS.map((ch, idx) => {
             const unlocked = idx <= currentChapterIndex;
             const completed = idx < currentChapterIndex;

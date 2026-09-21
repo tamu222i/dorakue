@@ -19,6 +19,8 @@ import { RecruitmentCelebrationModal, RecruitmentEvent } from './components/Recr
 import { RecruitmentTrialModal } from './components/RecruitmentTrialModal.tsx';
 import { ResetConfirmModal } from './components/ResetConfirmModal.tsx';
 import { PartyFormationModal } from './components/PartyFormationModal.tsx';
+import { ZukanNotificationModal } from './components/ZukanNotificationModal.tsx';
+import { EndingScreen } from './components/EndingScreen.tsx';
 import { DqFrame } from './components/DqFrame.tsx';
 import { FuriganaText } from './components/Ruby.tsx';
 import { PixelSprite } from './infrastructure/renderer/PixelSprite.tsx';
@@ -94,6 +96,7 @@ export default function App() {
   const [recruitmentEvent, setRecruitmentEvent] = useState<RecruitmentEvent | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
   const [isFormationModalOpen, setIsFormationModalOpen] = useState<boolean>(false);
+  const [zukanNotificationCharacters, setZukanNotificationCharacters] = useState<Character[]>([]);
   const [activeTrial, setActiveTrial] = useState<{
     character: Character;
     bonusCharacters: Character[];
@@ -161,19 +164,30 @@ export default function App() {
   };
 
   // Helper to register new characters as encountered
-  const registerEncounters = useCallback((ids: string[]) => {
+  const registerEncounters = useCallback((ids: string[], options?: { notify?: boolean }) => {
+    const shouldNotify = options?.notify ?? true;
     setEncounteredIds(prev => {
       let changed = false;
+      const newlyAddedChars: Character[] = [];
       const next = new Set(prev);
       for (const id of ids) {
         if (!next.has(id)) {
           next.add(id);
           changed = true;
+          const found = catalog.find(c => c.id === id);
+          if (found) {
+            newlyAddedChars.push(found);
+          }
         }
       }
+
+      if (shouldNotify && newlyAddedChars.length > 0) {
+        setZukanNotificationCharacters(prevList => [...prevList, ...newlyAddedChars]);
+      }
+
       return changed ? next : prev;
     });
-  }, []);
+  }, [catalog]);
 
   // Save current game state to localStorage
   const triggerSave = useCallback(() => {
@@ -301,7 +315,35 @@ export default function App() {
   };
 
   // Handle Victory in Battle
-  const handleBattleVictory = (expGained: number, moneyGained: number) => {
+  const handleBattleVictory = (
+    expGained: number,
+    moneyGained: number,
+    leveledUp: { name: string; newLevel: number }[] = []
+  ) => {
+    // Level-up Zukan unlock mechanic:
+    // When characters reach level thresholds (e.g. Lv. 3, 5, 8, 10, 15, 20, etc.),
+    // unlock corresponding demon or ally characters into the Zukan!
+    if (leveledUp.length > 0) {
+      const newlyDiscoveredIds: string[] = [];
+      const highestNewLevel = Math.max(...leveledUp.map(l => l.newLevel));
+
+      // Find locked demons or allies in catalog within the player's level range that haven't been encountered
+      const eligibleUnlocks = catalog.filter(c => 
+        !encounteredIds.has(c.id) &&
+        c.level <= highestNewLevel &&
+        c.id !== currentBattle?.enemy.id
+      );
+
+      // Take up to 2 unlocks per level-up event
+      for (const candidate of eligibleUnlocks.slice(0, 2)) {
+        newlyDiscoveredIds.push(candidate.id);
+      }
+
+      if (newlyDiscoveredIds.length > 0) {
+        registerEncounters(newlyDiscoveredIds);
+      }
+    }
+
     if (currentBattle?.isBoss && currentBattle.chapter) {
       const finishedChapterNum = currentBattle.chapter.chapterNumber;
 
@@ -337,8 +379,9 @@ export default function App() {
       setRosterVersion(v => v + 1);
 
       // Advance chapter
-      if (finishedChapterNum >= 8) {
-        // Defeated Muzan in Chapter 8! Roll Ending Credits
+      if (finishedChapterNum >= 9) {
+        // Defeated Demon Tanjiro in Chapter 9 (Final Hidden Stage)!
+        // Roll Dynamic Kizuna no Kiseki Ending Screen
         setScreen('ending');
         triggerSave();
         return;
@@ -597,61 +640,15 @@ export default function App() {
           />
         )}
 
-        {/* 6. ENDING SCREEN (Muzan Defeated) */}
+        {/* 6. ENDING SCREEN (Demon Tanjiro Defeated - Kizuna no Kiseki Fanfare) */}
         {screen === 'ending' && (
-          <div className="max-w-2xl mx-auto p-4 flex flex-col items-center gap-4 text-center">
-            <DqFrame variant="gold" className="p-6 flex flex-col items-center">
-              <Award className="w-12 h-12 text-amber-400 mb-2 animate-bounce" />
-              <h2 className="text-xl font-bold text-amber-300 mb-2">
-                【千年の悲願達成・夜明けの凱歌】
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed mb-4">
-                鬼の始祖・鬼舞辻無惨の肉体は朝日を浴びて完全に消滅した。
-                <br />
-                竈門炭治郎、禰豆子、我妻善逸、嘴平伊之助、そして鬼殺隊の柱たち全員の魂が繋いだ勝利。
-                <br />
-                鬼のいない平和な世界が、ここに訪れました。
-              </p>
-
-              <div className="flex flex-wrap justify-center gap-2 my-4">
-                {party.activeMembers.map(m => (
-                  <div key={m.id} className="flex flex-col items-center">
-                    <PixelSprite character={m} size={72} />
-                    <span className="text-xs font-bold text-amber-200 mt-1">{m.name}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-slate-900/90 border border-slate-700 p-3 rounded text-xs text-slate-300 mb-4 font-mono">
-                <div>総討伐章: 全8章クリア</div>
-                <div>仲間にした鬼殺隊士: {party.roster.length} 名</div>
-                <div>図鑑遭遇率: {encounteredIds.size} / 300 体</div>
-                <div>セーブデータ: ローカルストレージに安全に保管中</div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    SoundEngine.playConfirm();
-                    setScreen('zukan');
-                  }}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-white text-xs font-bold border border-indigo-400"
-                >
-                  300種大図鑑を見る
-                </button>
-
-                <button
-                  onClick={() => {
-                    SoundEngine.playConfirm();
-                    setScreen('world');
-                  }}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded text-white text-xs font-bold border border-amber-400"
-                >
-                  修業の旅を続ける
-                </button>
-              </div>
-            </DqFrame>
-          </div>
+          <EndingScreen
+            party={party}
+            catalog={catalog}
+            encounteredIds={encounteredIds}
+            onOpenZukan={() => setScreen('zukan')}
+            onContinueJourney={() => setScreen('world')}
+          />
         )}
       </main>
 
@@ -693,6 +690,18 @@ export default function App() {
         }}
         onEncounter={registerEncounters}
       />
+
+      {/* Zukan Registration Modal ("図鑑に追加も分かりづらいので都度表示して") */}
+      {zukanNotificationCharacters.length > 0 && (
+        <ZukanNotificationModal
+          characters={zukanNotificationCharacters}
+          onClose={() => setZukanNotificationCharacters([])}
+          onOpenZukan={() => {
+            setZukanNotificationCharacters([]);
+            setScreen('zukan');
+          }}
+        />
+      )}
     </div>
   );
 }

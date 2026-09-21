@@ -20,7 +20,7 @@ export interface NoteEvent {
   duration: number; // in beats (1 = quarter note, 0.5 = eighth note, etc.)
 }
 
-export type BgmTrackId = 'gurenge' | 'homura' | 'zankyou' | 'none';
+export type BgmTrackId = 'gurenge' | 'homura' | 'zankyou' | 'kizuna' | 'none';
 
 export interface BgmTrack {
   id: BgmTrackId;
@@ -258,10 +258,75 @@ const ZANKYOU_TRACK: BgmTrack = {
   ]
 };
 
+// 4.「絆ノ奇跡」(Kizuna no Kiseki) - 刀鍛冶の里編・最終決戦サビ (8-bit FCアレンジ)
+// 「闇夜を駆け抜けて どこへ向かう〜 照らせ陽の光よ」
+const KIZUNA_TRACK: BgmTrack = {
+  id: 'kizuna',
+  title: '絆ノ奇跡 (きずなのきせき)',
+  subtitle: 'MAN WITH A MISSION × milet / 最終決戦・感動のエンディング',
+  bpm: 142,
+  melody: [
+    // やみよを (E4 - F#4 - G4 - A4)
+    { note: 'E4', duration: 0.5 },
+    { note: 'F#4', duration: 0.5 },
+    { note: 'G4', duration: 0.5 },
+    { note: 'A4', duration: 0.5 },
+    // かけぬけて (B4 - B4 - A4 - B4)
+    { note: 'B4', duration: 0.5 },
+    { note: 'B4', duration: 0.5 },
+    { note: 'A4', duration: 0.5 },
+    { note: 'B4', duration: 1.0 },
+
+    // どこへむかう (D5 - B4 - A4 - G4 - A4)
+    { note: 'D5', duration: 0.5 },
+    { note: 'B4', duration: 0.5 },
+    { note: 'A4', duration: 0.5 },
+    { note: 'G4', duration: 0.5 },
+    { note: 'A4', duration: 1.5 },
+    { note: '-', duration: 0.5 },
+
+    // つないだてを (E4 - G4 - A4 - B4 - C5 - B4)
+    { note: 'E4', duration: 0.5 },
+    { note: 'G4', duration: 0.5 },
+    { note: 'A4', duration: 0.5 },
+    { note: 'B4', duration: 0.5 },
+    { note: 'C5', duration: 0.5 },
+    { note: 'B4', duration: 0.5 },
+    { note: 'A4', duration: 1.0 },
+
+    // はなさないで (B4 - C5 - D5 - E5 - D5)
+    { note: 'B4', duration: 0.5 },
+    { note: 'C5', duration: 0.5 },
+    { note: 'D5', duration: 0.5 },
+    { note: 'E5', duration: 1.5 },
+    { note: 'D5', duration: 0.5 },
+
+    // てらせひのひかりよ (B4 - C5 - B4 - A4 - G4 - E4)
+    { note: 'B4', duration: 0.5 },
+    { note: 'C5', duration: 0.5 },
+    { note: 'B4', duration: 0.5 },
+    { note: 'A4', duration: 0.5 },
+    { note: 'G4', duration: 1.0 },
+    { note: 'E4', duration: 2.0 },
+    { note: '-', duration: 1.0 }
+  ],
+  bass: [
+    { note: 'E3', duration: 0.5 }, { note: 'E3', duration: 0.5 }, { note: 'E3', duration: 0.5 }, { note: 'E3', duration: 0.5 },
+    { note: 'C3', duration: 0.5 }, { note: 'C3', duration: 0.5 }, { note: 'C3', duration: 0.5 }, { note: 'C3', duration: 0.5 },
+    { note: 'D3', duration: 0.5 }, { note: 'D3', duration: 0.5 }, { note: 'D3', duration: 0.5 }, { note: 'D3', duration: 0.5 },
+    { note: 'G2', duration: 0.5 }, { note: 'B2', duration: 0.5 }, { note: 'E3', duration: 1.0 },
+    { note: 'C3', duration: 0.5 }, { note: 'C3', duration: 0.5 }, { note: 'D3', duration: 0.5 }, { note: 'D3', duration: 0.5 },
+    { note: 'E3', duration: 0.5 }, { note: 'E3', duration: 0.5 }, { note: 'G3', duration: 1.0 },
+    { note: 'A2', duration: 0.5 }, { note: 'B2', duration: 0.5 }, { note: 'C3', duration: 0.5 }, { note: 'D3', duration: 0.5 },
+    { note: 'E3', duration: 2.0 }, { note: '-', duration: 1.0 }
+  ]
+};
+
 export const TRACKS: Record<BgmTrackId, BgmTrack | null> = {
   gurenge: GURENGE_TRACK,
   homura: HOMURA_TRACK,
   zankyou: ZANKYOU_TRACK,
+  kizuna: KIZUNA_TRACK,
   none: null
 };
 
@@ -402,9 +467,9 @@ class RetroBgmEngine {
     }, Math.max(100, (totalDuration - 0.05) * 1000));
   }
 
-  // Toggle between tracks: gurenge -> homura -> zankyou -> none
+  // Toggle between tracks: gurenge -> homura -> zankyou -> kizuna -> none
   public nextTrack(): BgmTrackId {
-    const list: BgmTrackId[] = ['gurenge', 'homura', 'zankyou', 'none'];
+    const list: BgmTrackId[] = ['gurenge', 'homura', 'zankyou', 'kizuna', 'none'];
     const curIdx = list.indexOf(this.currentTrackId);
     const nextIdx = (curIdx + 1) % list.length;
     const nextId = list[nextIdx];
