@@ -22,7 +22,8 @@ import { DqFrame } from './components/DqFrame.tsx';
 import { FuriganaText } from './components/Ruby.tsx';
 import { PixelSprite } from './infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from './infrastructure/audio/RetroSound.ts';
-import { Sparkles, Award, RefreshCw, Flame, Save, RotateCcw, Check, BookOpen } from 'lucide-react';
+import { BgmEngine, BgmTrackId, TRACKS } from './infrastructure/audio/RetroBGM.ts';
+import { Sparkles, Award, RefreshCw, Flame, Save, RotateCcw, Check, BookOpen, Music, Volume2, VolumeX } from 'lucide-react';
 
 type GameScreen = 'world' | 'battle' | 'inn' | 'zukan' | 'story' | 'ending';
 
@@ -96,6 +97,66 @@ export default function App() {
     bonusCharacters: Character[];
     choice: StoryChoice;
   } | null>(null);
+
+  // BGM playback state
+  const [bgmTrack, setBgmTrack] = useState<BgmTrackId>('gurenge');
+  const [isBgmStarted, setIsBgmStarted] = useState<boolean>(false);
+
+  // Automatically start BGM on first user interaction (pointer/click/key)
+  const handleStartBgmIfFirstTime = useCallback(() => {
+    if (!isBgmStarted) {
+      setIsBgmStarted(true);
+      const initialTrack = screen === 'inn' ? 'homura' : (screen === 'battle' && currentBattle?.isBoss ? 'zankyou' : 'gurenge');
+      setBgmTrack(initialTrack);
+      BgmEngine.play(initialTrack);
+    }
+  }, [isBgmStarted, screen, currentBattle?.isBoss]);
+
+  useEffect(() => {
+    const startAudioOnGesture = () => {
+      handleStartBgmIfFirstTime();
+    };
+    window.addEventListener('pointerdown', startAudioOnGesture, { once: true });
+    window.addEventListener('keydown', startAudioOnGesture, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', startAudioOnGesture);
+      window.removeEventListener('keydown', startAudioOnGesture);
+    };
+  }, [handleStartBgmIfFirstTime]);
+
+  // Synchronize BGM according to current screen/scene
+  useEffect(() => {
+    if (!isBgmStarted) return;
+    if (bgmTrack === 'none') {
+      BgmEngine.stop();
+      return;
+    }
+
+    let targetTrack: BgmTrackId = 'gurenge';
+    if (screen === 'inn') {
+      targetTrack = 'homura'; // 藤の家紋の宿: バラード「炎」
+    } else if (screen === 'battle') {
+      targetTrack = currentBattle?.isBoss ? 'zankyou' : 'gurenge'; // ボス戦:「残響散歌」 / 通常戦:「紅蓮華」
+    } else {
+      targetTrack = 'gurenge'; // フィールド・ストーリー・図鑑:「紅蓮華」
+    }
+
+    setBgmTrack(targetTrack);
+    BgmEngine.play(targetTrack);
+  }, [screen, currentBattle?.isBoss, isBgmStarted]);
+
+  const handleCycleBgm = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    SoundEngine.playConfirm();
+    if (!isBgmStarted) {
+      setIsBgmStarted(true);
+      setBgmTrack('gurenge');
+      BgmEngine.play('gurenge');
+      return;
+    }
+    const next = BgmEngine.nextTrack();
+    setBgmTrack(next);
+  };
 
   // Helper to register new characters as encountered
   const registerEncounters = useCallback((ids: string[]) => {
@@ -376,6 +437,29 @@ export default function App() {
             >
               <BookOpen className="w-3 h-3 text-amber-300" />
               <span><FuriganaText text="物語[ものがたり]モード" /></span>
+            </button>
+
+            {/* Demon Slayer Retro BGM Toggle */}
+            <button
+              onClick={handleCycleBgm}
+              className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
+                bgmTrack === 'none'
+                  ? 'border-slate-700 bg-slate-900 text-slate-400 hover:text-white'
+                  : 'border-amber-400 bg-amber-950/90 text-amber-200 shadow-sm animate-pulse'
+              }`}
+              title="クリックで鬼滅の刃BGM切り替え（紅蓮華・炎・残響散歌・消音）"
+            >
+              {bgmTrack === 'none' ? (
+                <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+              ) : (
+                <Music className="w-3.5 h-3.5 text-yellow-400" />
+              )}
+              <span>
+                {bgmTrack === 'gurenge' && '♪ 紅蓮華'}
+                {bgmTrack === 'homura' && '♪ 炎(ほむら)'}
+                {bgmTrack === 'zankyou' && '♪ 残響散歌'}
+                {bgmTrack === 'none' && 'BGM切'}
+              </span>
             </button>
 
             {/* Auto Save Status Indicator */}
