@@ -24,6 +24,7 @@ import { ZukanNotificationModal } from './components/ZukanNotificationModal.tsx'
 import { EndingScreen } from './components/EndingScreen.tsx';
 import { ClearProgressModal } from './components/ClearProgressModal.tsx';
 import { TwelveKizukiService, HiddenKizukiEncounter } from './domain/services/TwelveKizukiService.ts';
+import { EnemyGroupService } from './domain/services/EnemyGroupService.ts';
 import { DqFrame } from './components/DqFrame.tsx';
 import { FuriganaText } from './components/Ruby.tsx';
 import { PixelSprite } from './infrastructure/renderer/PixelSprite.tsx';
@@ -104,6 +105,7 @@ export default function App() {
 
   const [currentBattle, setCurrentBattle] = useState<{
     enemy: Character;
+    enemies?: Character[];
     isBoss: boolean;
     chapter?: StoryChapter;
   } | null>(null);
@@ -393,25 +395,32 @@ export default function App() {
   // Handle Starting a Boss Battle
   const handleStartBossBattle = (chapter: StoryChapter) => {
     const boss = catalog.find(c => c.id === chapter.bossCharacterId) || catalog.find(c => c.name.includes('鬼'))!;
+    const enemies = EnemyGroupService.resolveEnemies(boss, catalog);
 
-    // Register boss as encountered
-    registerEncounters([boss.id]);
+    // Register boss and all group members as encountered
+    registerEncounters([boss.id, ...enemies.map(e => e.id)]);
 
     setCurrentBattle({
       enemy: { ...boss },
+      enemies,
       isBoss: true,
       chapter
     });
     setScreen('battle');
   };
 
-  // Handle Starting a Wild Demon Encounter
-  const handleStartRandomBattle = (enemy: Character) => {
-    // Register wild enemy as encountered
-    registerEncounters([enemy.id]);
+  // Handle Starting a Wild Demon Encounter (supports 1 to 4 enemies, Swamp demon is 3 bodies)
+  const handleStartRandomBattle = (enemy: Character, specificEnemies?: Character[]) => {
+    const enemies = specificEnemies && specificEnemies.length > 0
+      ? specificEnemies
+      : EnemyGroupService.resolveEnemies(enemy, catalog);
+
+    // Register wild enemies as encountered
+    registerEncounters([enemy.id, ...enemies.map(e => e.id)]);
 
     setCurrentBattle({
       enemy: { ...enemy },
+      enemies,
       isBoss: false
     });
     setScreen('battle');
@@ -425,9 +434,11 @@ export default function App() {
       enemy = catalog.find(c => c.name.includes(encounter.bossName)) || catalog.find(c => c.id.startsWith('demon_'));
     }
     if (enemy) {
-      registerEncounters([enemy.id]);
+      const enemies = EnemyGroupService.resolveEnemies(enemy, catalog);
+      registerEncounters([enemy.id, ...enemies.map(e => e.id)]);
       setCurrentBattle({
         enemy: { ...enemy },
+        enemies,
         isBoss: true
       });
       setScreen('battle');
@@ -450,21 +461,29 @@ export default function App() {
     leveledUp: { name: string; newLevel: number }[] = []
   ) => {
     // Track defeated demon IDs for Upper Moon and 12 Kizuki completion
-    if (currentBattle?.enemy) {
-      const enemyId = currentBattle.enemy.id;
+    if (currentBattle) {
+      const allDefeatedIds = new Set<string>();
+      if (currentBattle.enemy) allDefeatedIds.add(currentBattle.enemy.id);
+      if (currentBattle.enemies) {
+        currentBattle.enemies.forEach(e => allDefeatedIds.add(e.id));
+      }
+
       setDefeatedDemonIds(prev => {
         const next = new Set(prev);
-        next.add(enemyId);
-        if (enemyId === 'demon_daki_gyutaro') {
+        allDefeatedIds.forEach(id => next.add(id));
+        if (allDefeatedIds.has('demon_daki_gyutaro') || allDefeatedIds.has('demon_daki') || allDefeatedIds.has('demon_gyutaro')) {
           next.add('demon_daki');
           next.add('demon_gyutaro');
-        } else if (enemyId === 'demon_gyokko_hantengu') {
+        }
+        if (allDefeatedIds.has('demon_gyokko_hantengu') || allDefeatedIds.has('demon_gyokko') || allDefeatedIds.has('demon_zohakuten')) {
           next.add('demon_gyokko');
           next.add('demon_zohakuten');
-        } else if (enemyId === 'demon_enmu_akaza') {
+        }
+        if (allDefeatedIds.has('demon_enmu_akaza') || allDefeatedIds.has('demon_enmu') || allDefeatedIds.has('demon_akaza')) {
           next.add('demon_enmu');
           next.add('demon_akaza');
-        } else if (enemyId === 'demon_muzan_final') {
+        }
+        if (allDefeatedIds.has('demon_muzan_final')) {
           next.add('demon_kokushibo');
         }
         return next;
@@ -510,8 +529,9 @@ export default function App() {
       setRosterVersion(v => v + 1);
 
       // Advance chapter & check clearing milestones
-      // User request: "最終ステージクリアしたらいったんクリアにしてね。全ての仲間集めと上弦の鬼全種類倒したら完全クリアだよ。ストーリーで出て来ない12鬼月は2周目の各ステージに隠れているよ。"
-      if (finishedChapterNum >= 8) {
+      // 1周目の第8章（無惨討伐）をクリアすると、第9番目の最終隠しステージ「鬼化・炭治郎」が解放されます！
+      // 1周目の第9章（鬼化・炭治郎）をクリアしたところで「いったんクリア（通常クリア）」となります。
+      if (finishedChapterNum >= 9) {
         setHasClearedNormal(true);
         const completeCheck = TwelveKizukiService.checkTrueCompleteClear(
           party.roster,
@@ -528,7 +548,7 @@ export default function App() {
         const nextIdx = Math.max(currentChapterIndex, finishedChapterNum);
         setCurrentChapterIndex(nextIdx);
 
-        // Pre-encounter next chapter's boss
+        // Pre-encounter next chapter's boss (e.g. Chapter 9 demon_tanjiro when Chapter 8 is cleared)
         const nextChapter = STORY_CHAPTERS[nextIdx];
         if (nextChapter) {
           registerEncounters([nextChapter.bossCharacterId]);
@@ -714,7 +734,9 @@ export default function App() {
             </button>
 
             <span className="text-slate-400">
-              討伐: <span className="text-amber-300 font-bold">第{currentChapterIndex + 1}章/全8章</span>
+              討伐: <span className="text-amber-300 font-bold">
+                {currentChapterIndex >= 8 ? '★最終隠し第9章（鬼の王）' : `第${currentChapterIndex + 1}章/全8章`}
+              </span>
             </span>
             <span className="text-yellow-400 font-bold">
               {party.money} 銭
@@ -730,6 +752,7 @@ export default function App() {
           <BattleScreen
             party={party}
             enemy={currentBattle.enemy}
+            enemies={currentBattle.enemies}
             isBoss={currentBattle.isBoss}
             isEasyAssist={isEasyAssist}
             onVictory={handleBattleVictory}

@@ -8,11 +8,12 @@ import { StoryChapter, Character } from '../domain/models/types.ts';
 import { STORY_CHAPTERS } from '../domain/services/StoryData.ts';
 import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
 import { TwelveKizukiService, HiddenKizukiEncounter } from '../domain/services/TwelveKizukiService.ts';
+import { EnemyGroupService } from '../domain/services/EnemyGroupService.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { MapPin, Swords, Bed, BookOpen, ShieldAlert, Award, RotateCcw, Sparkles, Skull, CheckCircle2 } from 'lucide-react';
+import { MapPin, Swords, Bed, BookOpen, ShieldAlert, Award, RotateCcw, Sparkles, Skull, CheckCircle2, Waves } from 'lucide-react';
 
 interface WorldMapScreenProps {
   party: PartyAggregate;
@@ -21,7 +22,7 @@ interface WorldMapScreenProps {
   playthroughCount: number;
   defeatedDemonIds: Set<string>;
   onStartBossBattle: (chapter: StoryChapter) => void;
-  onStartRandomBattle: (enemy: Character) => void;
+  onStartRandomBattle: (enemy: Character, enemies?: Character[]) => void;
   onStartHiddenKizukiBattle: (encounter: HiddenKizukiEncounter) => void;
   onGoToInn: () => void;
   onOpenZukan: () => void;
@@ -46,16 +47,27 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
   onResetGame
 }) => {
   const [selectedChapterIdx, setSelectedChapterIdx] = useState<number>(currentChapterIndex);
-  const [selectedTrainingTier, setSelectedTrainingTier] = useState<'stage1' | 'stage2' | 'current'>('stage1');
+  const [selectedTrainingTier, setSelectedTrainingTier] = useState<'stage1' | 'stage2' | 'current' | 'swamp'>('stage1');
   const chapter = STORY_CHAPTERS[selectedChapterIdx] || STORY_CHAPTERS[0];
 
   // Check hidden Kizuki for selected chapter
   const hiddenKizuki = TwelveKizukiService.getHiddenKizukiForChapter(chapter.chapterNumber);
   const isHiddenKizukiDefeated = hiddenKizuki ? defeatedDemonIds.has(hiddenKizuki.demonId) : false;
 
-  // Helper to start training / wild demon encounter with specific tier
-  const triggerWildDemonEncounter = (tier: 'stage1' | 'stage2' | 'current' = selectedTrainingTier) => {
+  // Helper to start training / wild demon encounter with multiple enemies (1 to 4 enemies, Swamp demon is 3 bodies)
+  const triggerWildDemonEncounter = (tier: 'stage1' | 'stage2' | 'current' | 'swamp' = selectedTrainingTier) => {
     SoundEngine.playConfirm();
+
+    // 沼の鬼（三身一体・3体戦闘！）
+    if (tier === 'swamp') {
+      const swampDemon = catalog.find(c => c.id === 'demon_swamp') || catalog.find(c => c.name.includes('沼'));
+      if (swampDemon) {
+        const trio = EnemyGroupService.createSwampDemonTrio(swampDemon);
+        onStartRandomBattle(swampDemon, trio);
+        return;
+      }
+    }
+
     let demonPool: Character[] = [];
 
     if (tier === 'stage1') {
@@ -70,11 +82,14 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
       demonPool = catalog.filter(c => c.role === 'demon' && Math.abs(c.level - targetLevel) <= 3);
     }
 
-    const chosen = demonPool.length > 0
-      ? demonPool[Math.floor(Math.random() * demonPool.length)]
-      : catalog.find(c => c.role === 'demon')!;
+    if (demonPool.length === 0) {
+      demonPool = catalog.filter(c => c.role === 'demon');
+    }
 
-    onStartRandomBattle({ ...chosen });
+    // Generate mob with 1 to 4 enemies!
+    const group = EnemyGroupService.createWildEnemyGroup(demonPool);
+    const mainEnemy = group[0] || catalog.find(c => c.role === 'demon')!;
+    onStartRandomBattle(mainEnemy, group);
   };
 
   const isUnlocked = selectedChapterIdx <= currentChapterIndex;
@@ -275,6 +290,8 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 <span>
                   {chapter.chapterNumber === 8 ? (
                     <FuriganaText text="最終[さいしゅう]決戦[けっせん]！鬼舞辻[きぶつじ]無惨[むざん]に挑[いど]む" />
+                  ) : chapter.chapterNumber === 9 ? (
+                    <FuriganaText text="最終[さいしゅう]隠[かく]し決戦[けっせん]！鬼化[おにか]・炭治郎[たんじろう]（鬼の王）に挑[いど]む" />
                   ) : (
                     <FuriganaText text={`討[とう]伐[ばつ]任務[にんむ]: ${chapter.bossName} に挑[いど]む`} />
                   )}
@@ -365,7 +382,7 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 <span className="text-[10px] text-slate-400">1タップで戦闘開始</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
                 <button
                   onClick={() => triggerWildDemonEncounter('stage1')}
                   className="py-2.5 px-2 bg-emerald-950/80 hover:bg-emerald-900 active:bg-emerald-800 text-emerald-200 text-xs font-bold rounded border border-emerald-500 flex flex-col items-center justify-center gap-0.5 shadow transition-all touch-manipulation"
@@ -374,7 +391,7 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                     <FuriganaText text="🔰 最弱[さいじゃく]・藤襲山[ふじかさねやま] (Lv.1〜3)" />
                   </span>
                   <span className="text-[9px] text-emerald-400/90">
-                    <FuriganaText text="炭治郎[たんじろう]たちの安全[あんぜん]な育成[いくせい]！" />
+                    <FuriganaText text="鬼[おに]の群[む]れ (1〜4体[たい]) 出現[しゅつげん]！" />
                   </span>
                 </button>
 
@@ -386,7 +403,20 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                     <FuriganaText text="🏮 初級[しょきゅう]・浅草街[あさくさがい] (Lv.4〜7)" />
                   </span>
                   <span className="text-[9px] text-cyan-400/90">
-                    <FuriganaText text="足鬼[あしおに]・首鬼[くびおに]など新[しん]種[しゅ]の鬼！" />
+                    <FuriganaText text="足鬼[あしおに]・首鬼[くびおに]など最大[さいだい]4体[たい]！" />
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => triggerWildDemonEncounter('swamp')}
+                  className="py-2.5 px-2 bg-blue-950/80 hover:bg-blue-900 active:bg-blue-800 text-blue-200 text-xs font-bold rounded border border-blue-400 flex flex-col items-center justify-center gap-0.5 shadow transition-all touch-manipulation"
+                >
+                  <span className="text-[11px] text-blue-300 font-bold flex items-center gap-1">
+                    <Waves className="w-3 h-3 text-cyan-400" />
+                    <FuriganaText text="🌊 沼[ぬま]の鬼[おに]（三身[さんみ]一体[いったい]）" />
+                  </span>
+                  <span className="text-[9px] text-blue-300/90">
+                    <FuriganaText text="一本角[いっぽんづの]・二本角[にほんづの]・三本角[さんぼんづの]の3体[たい]同時[どうじ]！" />
                   </span>
                 </button>
 
@@ -398,7 +428,7 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                     <FuriganaText text={`⚔️ 現[げん]舞台[ぶたい]: 第[だい]${chapter.chapterNumber}章[しょう]`} />
                   </span>
                   <span className="text-[9px] text-slate-400">
-                    推奨Lv.{chapter.recommendedLevel} 周辺の鬼
+                    推奨Lv.{chapter.recommendedLevel} 周辺の鬼 (1〜4体)
                   </span>
                 </button>
               </div>

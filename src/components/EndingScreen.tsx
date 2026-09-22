@@ -114,13 +114,13 @@ export const EndingScreen: React.FC<EndingScreenProps> = ({
         ) : (
           <>
             <div className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-900/60 to-orange-900/60 border border-amber-500/60 text-amber-300 text-xs font-bold mb-1">
-              STAGE CLEARED: 一旦クリア（通常クリア）
+              STAGE CLEARED: 1周目 最終隠しステージクリア（一旦クリア）
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-amber-300 to-orange-200 mb-1">
-              【祝・鬼舞辻無惨討伐！（通常クリア達成）】
+              【祝・第9章 最終隠しステージ制覇！（一旦クリア達成）】
             </h1>
             <p className="text-xs sm:text-sm text-amber-200/90 font-bold mb-3">
-              千年の宿敵・鬼舞辻無惨を打ち破った！だが、真の完全クリアへの道が残されている…！
+              鬼舞辻無惨を討ち、鬼化した炭治郎を救い出した！だが、真の完全クリアへの道が残されている…！
             </p>
           </>
         )}
@@ -137,7 +137,7 @@ export const EndingScreen: React.FC<EndingScreenProps> = ({
           <p className="text-slate-200">
             {isTrueComplete
               ? '鬼殺隊の全隊士と協力者が一人残らず手を取り合い、全ての上弦の鬼を打ち倒した。炭治郎は仲間たちの温もりによって人間の心を取り戻し、鬼のいない平和な世界がここに完成した。'
-              : '激闘の果てに鬼舞辻無惨の肉体は朝日と共に崩れ去った。しかし、隠れ潜む十二鬼月の残党、そしてまだ見ぬ仲間たちの集結が待っている。'}
+              : '激闘の果てに鬼舞辻無惨の肉体は朝日と共に崩れ去り、鬼の王となった炭治郎も仲間たちの絆で無事に人間に戻った。だが、2周目の各ステージに潜む十二鬼月、そして全ての仲間の集結が待っている…！'}
           </p>
 
           {/* Dynamic Dialogue snippets depending on who survived */}
