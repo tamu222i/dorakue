@@ -118,6 +118,8 @@ async function runTests() {
   const mockStorage: Record<string, string> = {};
   (globalThis as any).window = {
     localStorage: {
+      get length() { return Object.keys(mockStorage).length; },
+      key: (i: number) => Object.keys(mockStorage)[i] || null,
       getItem: (key: string) => mockStorage[key] || null,
       setItem: (key: string, val: string) => { mockStorage[key] = val; },
       removeItem: (key: string) => { delete mockStorage[key]; }
@@ -127,7 +129,12 @@ async function runTests() {
   // WHEN: Saving party with 300 money, chapter 3, and 3 recruited members
   party.money = 777;
   const currentChapter = 3;
-  const saveSuccess = SaveService.saveGame(currentChapter, party, [tanjiroHero.id, zenitsu.id]);
+  const saveSuccess = SaveService.saveGame(currentChapter, party, [tanjiroHero.id, zenitsu.id], {
+    playthroughCount: 2,
+    hasClearedNormal: true,
+    hasClearedTrue: true,
+    defeatedDemonIds: ['demon_rui', 'demon_akaza', 'demon_kokushibo']
+  });
   assert(saveSuccess, 'When: Game saved successfully to localStorage');
 
   // THEN: Loading game restores money, chapter, and members
@@ -136,6 +143,29 @@ async function runTests() {
   assert(loadedData?.partyMoney === 777, `Then: Party money restored (expected: 777, actual: ${loadedData?.partyMoney})`);
   assert(loadedData?.currentChapterIndex === 3, `Then: Chapter index restored (expected: 3, actual: ${loadedData?.currentChapterIndex})`);
   assert(loadedData?.roster.length === party.roster.length, 'Then: Roster length matches saved state');
+  assert(loadedData?.playthroughCount === 2, 'Then: Playthrough count restored to 2');
+  assert(loadedData?.defeatedDemonIds?.length === 3, 'Then: Defeated demon IDs restored');
+
+  // Complete Reset Verification (全削除テスト: 1周目・2周目の討伐履歴も完全に消去)
+  SaveService.clearSave();
+  assert(SaveService.loadGame() === null, 'Then: Save data is completely deleted from storage');
+  assert(Object.keys(mockStorage).filter(k => k.includes('kimetsu')).length === 0, 'Then: All kimetsu localStorage keys are completely wiped');
+
+  // Fresh initial game state saved after reset
+  const freshTanjiro = catalog[0];
+  const freshParty = new PartyAggregate(freshTanjiro);
+  SaveService.saveGame(0, freshParty, [freshTanjiro.id], {
+    playthroughCount: 1,
+    hasClearedNormal: false,
+    hasClearedTrue: false,
+    defeatedDemonIds: []
+  });
+  const freshLoaded = SaveService.loadGame();
+  assert(freshLoaded?.currentChapterIndex === 0, 'Then: Chapter reset to 0');
+  assert(freshLoaded?.playthroughCount === 1, 'Then: Playthrough reset to 1');
+  assert(freshLoaded?.hasClearedNormal === false, 'Then: Normal clear flag reset to false');
+  assert(freshLoaded?.hasClearedTrue === false, 'Then: True clear flag reset to false');
+  assert(freshLoaded?.defeatedDemonIds?.length === 0, 'Then: Defeated demon history completely reset (0 demons)');
 
   // Scenario 6: 原作ストーリーモードの分岐選択による仲間加入 (Story Mode Choices)
   console.log('Scenario: Story mode presents branching choices that recruit different comrades');
@@ -313,6 +343,33 @@ async function runTests() {
   assert(isUltimateSkill(mockTanjiroAllSkills, sunDragonUlt), 'Then: STRONGEST Sun Dragon DOES trigger cut-in (最強の呼吸だけカットイン)');
   assert(isUltimateSkill(mockTanjiroAllSkills, giyuUlt), 'Then: Giyu Dead Calm (拾壱ノ型 凪) DOES trigger cut-in');
   assert(isUltimateSkill(mockTanjiroAllSkills, zenitsuUlt), 'Then: Zenitsu Flaming Thunder God (漆ノ型 火雷神) DOES trigger cut-in');
+
+  // Scenario 12: ユーザー要望「ボスキャラが弱すぎる。レベル5つ上げないと倒せない」「最終ステージは最強の呼吸使わないと倒せない」「2周目はレベル1上がっていく」の検証
+  console.log('Scenario: Boss difficulty rebalance, final stage ultimate requirement, and 2nd playthrough scaling');
+  const { EnemyGroupService } = await import('../src/domain/services/EnemyGroupService.ts');
+
+  // 1. 各章の推奨レベルが5レベル引き上げられていること (Lv.6〜Lv.50)
+  assert(STORY_CHAPTERS[0].recommendedLevel === 6, 'Then: Chapter 1 recommendedLevel is 6 (+5 increased)');
+  assert(STORY_CHAPTERS[3].recommendedLevel === 21, 'Then: Chapter 4 recommendedLevel is 21 (+5 increased)');
+  assert(STORY_CHAPTERS[7].recommendedLevel === 45, 'Then: Chapter 8 recommendedLevel is 45 (+5 increased)');
+  assert(STORY_CHAPTERS[8].recommendedLevel === 50, 'Then: Chapter 9 recommendedLevel is 50 (+5 increased)');
+
+  // 2. 最終ボスの討伐には最強の呼吸が必要であること (isUltimateSkill 判定)
+  const tanjiroUlt = MASTER_SKILLS.hinokami_sun_dragon;
+  const tanjiroNormalSkill = MASTER_SKILLS.water_surface_slash;
+  assert(isUltimateSkill(mockTanjiroAllSkills, tanjiroUlt) === true, 'Then: Hinokami Sun Dragon is valid ultimate skill for defeating final boss');
+  assert(isUltimateSkill(mockTanjiroAllSkills, tanjiroNormalSkill) === false, 'Then: Normal water slash is NOT an ultimate skill (cannot finish final boss)');
+
+  // 3. 2周目はステージごとにレベルが1ずつ上がっていくこと (Lv.46 〜 Lv.54)
+  const baseDemon = catalog.find(c => c.id === 'demon_swamp') || catalog.find(c => c.id.startsWith('demon_'))!;
+  const scaledCh1 = EnemyGroupService.scaleEnemyForPlaythrough(baseDemon, 2, 1);
+  const scaledCh2 = EnemyGroupService.scaleEnemyForPlaythrough(baseDemon, 2, 2);
+  const scaledCh9 = EnemyGroupService.scaleEnemyForPlaythrough(baseDemon, 2, 9);
+  assert(scaledCh1.level === 46, `Then: 2nd playthrough Chapter 1 enemy scales to Lv.46 (actual: ${scaledCh1.level})`);
+  assert(scaledCh2.level === 47, `Then: 2nd playthrough Chapter 2 enemy scales to Lv.47 (actual: ${scaledCh2.level})`);
+  assert(scaledCh9.level === 54, `Then: 2nd playthrough Chapter 9 enemy scales to Lv.54 (actual: ${scaledCh9.level})`);
+  assert(scaledCh2.level === scaledCh1.level + 1, 'Then: 2nd playthrough enemy levels increase by 1 per stage (2周目はレベル1上がっていく)');
+  assert(scaledCh1.stats.maxHp > baseDemon.stats.maxHp, 'Then: Scaled enemy stats (HP) increase accordingly');
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

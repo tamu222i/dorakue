@@ -36,7 +36,7 @@ type GameScreen = 'world' | 'battle' | 'inn' | 'zukan' | 'story' | 'ending';
 
 export default function App() {
   // 1. Initialize 300-Character Catalog
-  const catalog = useMemo(() => generateCharacterCatalog(), []);
+  const [catalog, setCatalog] = useState<Character[]>(() => generateCharacterCatalog());
 
   // Check for saved data in localStorage
   const savedData = useMemo(() => {
@@ -404,13 +404,13 @@ export default function App() {
   // Handle Starting a Boss Battle
   const handleStartBossBattle = (chapter: StoryChapter) => {
     const boss = catalog.find(c => c.id === chapter.bossCharacterId) || catalog.find(c => c.name.includes('鬼'))!;
-    const enemies = EnemyGroupService.resolveEnemies(boss, catalog);
+    const enemies = EnemyGroupService.resolveEnemies(boss, catalog, playthroughCount, chapter.chapterNumber);
 
     // Register boss and all group members as encountered
     registerEncounters([boss.id, ...enemies.map(e => e.id)]);
 
     setCurrentBattle({
-      enemy: { ...boss },
+      enemy: enemies[0] || { ...boss },
       enemies,
       isBoss: true,
       chapter
@@ -421,14 +421,14 @@ export default function App() {
   // Handle Starting a Wild Demon Encounter (supports 1 to 4 enemies, Swamp demon is 3 bodies)
   const handleStartRandomBattle = (enemy: Character, specificEnemies?: Character[]) => {
     const enemies = specificEnemies && specificEnemies.length > 0
-      ? specificEnemies
-      : EnemyGroupService.resolveEnemies(enemy, catalog);
+      ? specificEnemies.map(e => playthroughCount >= 2 ? EnemyGroupService.scaleEnemyForPlaythrough(e, playthroughCount, currentChapterIndex + 1) : e)
+      : EnemyGroupService.resolveEnemies(enemy, catalog, playthroughCount, currentChapterIndex + 1);
 
     // Register wild enemies as encountered
     registerEncounters([enemy.id, ...enemies.map(e => e.id)]);
 
     setCurrentBattle({
-      enemy: { ...enemy },
+      enemy: enemies[0] || { ...enemy },
       enemies,
       isBoss: false
     });
@@ -447,10 +447,10 @@ export default function App() {
       enemy = catalog.find(c => c.name.includes(encounter.bossName)) || catalog.find(c => c.id.startsWith('demon_'));
     }
     if (enemy) {
-      const enemies = EnemyGroupService.resolveEnemies(enemy, catalog);
+      const enemies = EnemyGroupService.resolveEnemies(enemy, catalog, playthroughCount, encounter.chapterNumber);
       registerEncounters([enemy.id, ...enemies.map(e => e.id)]);
       setCurrentBattle({
-        enemy: { ...enemy },
+        enemy: enemies[0] || { ...enemy },
         enemies,
         isBoss: true
       });
@@ -591,40 +591,60 @@ export default function App() {
   };
 
   const handleConfirmReset = () => {
+    // 1. Wipe all localStorage items for the game
     SaveService.clearSave();
 
-    // Reset Tanjiro
-    const tanjiro = catalog.find(c => c.name === '竈門炭治郎') || catalog[0];
-    tanjiro.level = 1;
-    tanjiro.exp = 0;
-    tanjiro.stats.hp = tanjiro.stats.maxHp;
-    tanjiro.stats.bp = tanjiro.stats.maxBp;
+    // 2. Generate a clean fresh catalog so all 300 characters' stats, levels, and HP are pristine
+    const freshCatalog = generateCharacterCatalog();
+    setCatalog(freshCatalog);
 
-    // Reset party
-    party.restoreFromData([tanjiro], [tanjiro.id], 500, []);
+    // 3. Reset starting members
+    const freshTanjiro = freshCatalog.find(c => c.name === '竈門炭治郎') || freshCatalog[0];
+    const freshNezuko = freshCatalog.find(c => c.name === '竈門禰豆子');
 
-    // Recruit starting Nezuko
-    const nezuko = catalog.find(c => c.name === '竈門禰豆子');
-    if (nezuko) {
-      nezuko.level = 1;
-      nezuko.exp = 0;
-      nezuko.stats.hp = nezuko.stats.maxHp;
-      nezuko.stats.bp = nezuko.stats.maxBp;
-      party.recruitMember(nezuko);
+    // 4. Reset party roster, active party, money (500), and inventory (empty)
+    party.restoreFromData([freshTanjiro], [freshTanjiro.id], 500, []);
+    if (freshNezuko) {
+      party.recruitMember(freshNezuko);
     }
 
+    // 5. CRITICAL: Completely reset defeat history, playthrough count, and clear milestones!
+    setDefeatedDemonIds(new Set<string>());
+    setPlaythroughCount(1);
+    setHasClearedNormal(false);
+    setHasClearedTrue(false);
     setCurrentChapterIndex(0);
-    const initialSet = new Set<string>([tanjiro.id]);
-    if (nezuko) initialSet.add(nezuko.id);
+
+    // 6. Reset encountered characters to only starting members (Tanjiro, Nezuko, Hand demon, Urokodaki)
+    const initialSet = new Set<string>([freshTanjiro.id]);
+    if (freshNezuko) initialSet.add(freshNezuko.id);
+    const handDemon = freshCatalog.find(c => c.name.includes('手鬼'));
+    if (handDemon) initialSet.add(handDemon.id);
+    const uroko = freshCatalog.find(c => c.name.includes('鱗滝'));
+    if (uroko) initialSet.add(uroko.id);
     setEncounteredIds(initialSet);
+
+    // 7. Reset battle, trial, dialogue, modals, and screen
     setCurrentBattle(null);
     setRecruitmentEvent(null);
+    setInnMessage(undefined);
+    setInnActiveTab('rest');
+    setActiveTrial(null);
+    setHashiraTrainingCandidate(null);
+    setIsClearProgressModalOpen(false);
+    setIsFormationModalOpen(false);
+    setZukanNotificationCharacters([]);
     setShowResetConfirm(false);
     setScreen('world');
     setRosterVersion(v => v + 1);
 
-    // Persist brand new save data
-    SaveService.saveGame(0, party, initialSet);
+    // 8. Immediately persist clean fresh state to localStorage
+    SaveService.saveGame(0, party, initialSet, {
+      playthroughCount: 1,
+      hasClearedNormal: false,
+      hasClearedTrue: false,
+      defeatedDemonIds: []
+    });
     setSaveStatus('saved');
   };
 
@@ -787,6 +807,7 @@ export default function App() {
             enemy={currentBattle.enemy}
             enemies={currentBattle.enemies}
             isBoss={currentBattle.isBoss}
+            chapter={currentBattle.chapter}
             isEasyAssist={isEasyAssist}
             onVictory={handleBattleVictory}
             onEscape={() => {

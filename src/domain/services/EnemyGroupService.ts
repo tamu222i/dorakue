@@ -47,100 +47,148 @@ const SWAMP_SKILLS: Record<string, Skill> = {
 
 export class EnemyGroupService {
   /**
+   * Scales an enemy for 2nd and subsequent playthroughs (2周目はレベル1上がっていく感じで調整)
+   * 2周目: Stage 1 = Lv.46, Stage 2 = Lv.47, ..., Stage 9 = Lv.54 (+1 per stage!)
+   * 3周目+: +(playthroughCount - 2)
+   */
+  public static scaleEnemyForPlaythrough(
+    enemy: Character,
+    playthroughCount: number = 1,
+    chapterNumber: number = 1
+  ): Character {
+    if (playthroughCount < 2) {
+      return { ...enemy, stats: { ...enemy.stats } };
+    }
+
+    const loopBonus = playthroughCount - 2;
+    // 2周目は各ステージでレベルが1ずつ上がっていく (第1章:46, 第2章:47 ... 第9章:54)
+    const targetLevel = 45 + chapterNumber + loopBonus;
+    const baseLevel = Math.max(1, enemy.level || 1);
+    const scaleRatio = Math.max(1.0, targetLevel / baseLevel);
+
+    const scaledMaxHp = Math.round(enemy.stats.maxHp * Math.min(2.5, Math.max(1.0, scaleRatio * 0.95)));
+    const scaledAttack = Math.round(enemy.stats.attack * Math.min(1.8, Math.max(1.0, Math.sqrt(scaleRatio) * 1.05)));
+    const scaledDefense = Math.round(enemy.stats.defense * Math.min(1.6, Math.max(1.0, Math.sqrt(scaleRatio) * 1.02)));
+
+    return {
+      ...enemy,
+      level: targetLevel,
+      stats: {
+        ...enemy.stats,
+        maxHp: scaledMaxHp,
+        hp: scaledMaxHp,
+        attack: scaledAttack,
+        defense: scaledDefense,
+        speed: enemy.stats.speed + Math.min(15, chapterNumber)
+      }
+    };
+  }
+
+  /**
    * Resolves a battle encounter enemy into a group of 1 to 4 enemies.
    * Specific lore encounters naturally split into multiple bodies (e.g. Swamp Demon = 3 bodies, Susamaru & Yahaba = 2, Daki & Gyutaro = 2).
    */
-  public static resolveEnemies(mainEnemy: Character, catalog: Character[]): Character[] {
+  public static resolveEnemies(
+    mainEnemy: Character,
+    catalog: Character[],
+    playthroughCount: number = 1,
+    chapterNumber: number = 1
+  ): Character[] {
+    let list: Character[] = [];
+
     // 1. 沼の鬼 (Swamp Demon) splits into exactly 3 bodies! ("沼鬼は3人だよ")
     if (
       mainEnemy.id === 'demon_swamp' ||
       mainEnemy.name.includes('沼の鬼') ||
       mainEnemy.name.includes('沼鬼')
     ) {
-      return this.createSwampDemonTrio(mainEnemy);
-    }
-
-    // 2. 朱紗丸 ＆ 矢琶羽 (2 enemies)
-    if (
+      list = this.createSwampDemonTrio(mainEnemy);
+    } else if (
       mainEnemy.id === 'demon_yahaba_susamaru' ||
       (mainEnemy.name.includes('朱紗丸') && mainEnemy.name.includes('矢琶羽'))
     ) {
+      // 2. 朱紗丸 ＆ 矢琶羽 (2 enemies)
       const susamaru = catalog.find(c => c.id === 'demon_susamaru');
       const yahaba = catalog.find(c => c.id === 'demon_yahaba');
       if (susamaru && yahaba) {
-        return [
+        list = [
           { ...susamaru, stats: { ...susamaru.stats } },
           { ...yahaba, stats: { ...yahaba.stats } }
         ];
+      } else {
+        list = [
+          {
+            ...mainEnemy,
+            id: 'demon_susamaru',
+            name: '朱紗丸（毬の鬼）',
+            stats: { ...mainEnemy.stats, maxHp: 750, hp: 750, attack: 64 }
+          },
+          {
+            ...mainEnemy,
+            id: 'demon_yahaba',
+            name: '矢琶羽（矢印の鬼）',
+            stats: { ...mainEnemy.stats, maxHp: 700, hp: 700, attack: 65 }
+          }
+        ];
       }
-      return [
-        {
-          ...mainEnemy,
-          id: 'demon_susamaru',
-          name: '朱紗丸（毬の鬼）',
-          stats: { ...mainEnemy.stats, maxHp: 260, hp: 260, attack: 44 }
-        },
-        {
-          ...mainEnemy,
-          id: 'demon_yahaba',
-          name: '矢琶羽（矢印の鬼）',
-          stats: { ...mainEnemy.stats, maxHp: 240, hp: 240, attack: 42 }
-        }
-      ];
-    }
-
-    // 3. 堕姫 ＆ 妓夫太郎 (2 enemies)
-    if (
+    } else if (
       mainEnemy.id === 'demon_daki_gyutaro' ||
       (mainEnemy.name.includes('堕姫') && mainEnemy.name.includes('妓夫太郎'))
     ) {
+      // 3. 堕姫 ＆ 妓夫太郎 (2 enemies)
       const daki = catalog.find(c => c.id === 'demon_daki');
       const gyutaro = catalog.find(c => c.id === 'demon_gyutaro');
       if (daki && gyutaro) {
-        return [
+        list = [
           { ...daki, stats: { ...daki.stats } },
           { ...gyutaro, stats: { ...gyutaro.stats } }
         ];
+      } else {
+        list = [{ ...mainEnemy, stats: { ...mainEnemy.stats } }];
       }
-    }
-
-    // 4. 玉壺 ＆ 半天狗 (2 enemies)
-    if (
+    } else if (
       mainEnemy.id === 'demon_gyokko_hantengu' ||
       (mainEnemy.name.includes('玉壺') && mainEnemy.name.includes('半天狗'))
     ) {
+      // 4. 玉壺 ＆ 半天狗 (2 enemies)
       const gyokko = catalog.find(c => c.id === 'demon_gyokko');
       const zohakuten = catalog.find(c => c.id === 'demon_zohakuten');
       if (gyokko && zohakuten) {
-        return [
+        list = [
           { ...gyokko, stats: { ...gyokko.stats } },
           { ...zohakuten, stats: { ...zohakuten.stats } }
         ];
+      } else {
+        list = [{ ...mainEnemy, stats: { ...mainEnemy.stats } }];
       }
-    }
-
-    // 5. 魘夢 ＆ 猗窩座 (2 enemies)
-    if (
+    } else if (
       mainEnemy.id === 'demon_enmu_akaza' ||
       (mainEnemy.name.includes('魘夢') && mainEnemy.name.includes('猗窩座'))
     ) {
+      // 5. 魘夢 ＆ 猗窩座 (2 enemies)
       const enmu = catalog.find(c => c.id === 'demon_enmu');
       const akaza = catalog.find(c => c.id === 'demon_akaza');
       if (enmu && akaza) {
-        return [
+        list = [
           { ...enmu, stats: { ...enmu.stats } },
           { ...akaza, stats: { ...akaza.stats } }
         ];
+      } else {
+        list = [{ ...mainEnemy, stats: { ...mainEnemy.stats } }];
       }
+    } else if (mainEnemy.id === 'demon_hantengu_clones' || mainEnemy.name.includes('喜怒哀楽')) {
+      // 6. 半天狗の分身 (4 enemies: 積怒・可楽・空喜・哀絶)
+      list = this.createHantenguClones(mainEnemy);
+    } else {
+      // Default: Single Enemy
+      list = [{ ...mainEnemy, stats: { ...mainEnemy.stats } }];
     }
 
-    // 6. 半天狗の分身 (4 enemies: 積怒・可楽・空喜・哀絶)
-    if (mainEnemy.id === 'demon_hantengu_clones' || mainEnemy.name.includes('喜怒哀楽')) {
-      return this.createHantenguClones(mainEnemy);
+    // Apply 2周目 level scaling if active
+    if (playthroughCount >= 2) {
+      return list.map(e => this.scaleEnemyForPlaythrough(e, playthroughCount, chapterNumber));
     }
-
-    // Default: Single Enemy
-    return [{ ...mainEnemy, stats: { ...mainEnemy.stats } }];
+    return list;
   }
 
   /**

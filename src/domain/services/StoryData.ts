@@ -15,7 +15,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '鱗滝のもとで過酷な修行を終えた炭治郎。鬼殺隊員となるため、藤の花が咲き誇る藤襲山の最終選別へと挑む。山に封じられた巨魁「手鬼」が立ち塞がる！',
     bossCharacterId: 'demon_hand',
     bossName: '手鬼（藤襲山の異形鬼）',
-    recommendedLevel: 3,
+    recommendedLevel: 6,
     unlockedRecruits: ['char_zenitsu'],
     choices: [
       {
@@ -86,7 +86,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '初めて訪れた大都会・浅草。人の波の中で炭治郎は鬼舞辻無惨の匂いを嗅ぎつける！無惨が放った刺客・朱紗丸と矢琶羽が夜の街を襲撃する。',
     bossCharacterId: 'demon_yahaba_susamaru',
     bossName: '朱紗丸 ＆ 矢琶羽',
-    recommendedLevel: 8,
+    recommendedLevel: 11,
     unlockedRecruits: ['char_tamayo', 'char_yushiro'],
     choices: [
       {
@@ -146,7 +146,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '鎹鴉の指示で向かった不気味な屋敷。そこでは元下弦の鬼・響凱が鼓を打ち鳴らし部屋ごと空間を操っていた。恐怖に震える善逸と、猪頭の伊之助と合流！',
     bossCharacterId: 'demon_kyogai',
     bossName: '元下弦の陸・響凱',
-    recommendedLevel: 12,
+    recommendedLevel: 16,
     unlockedRecruits: ['char_inosuke'],
     choices: [
       {
@@ -206,7 +206,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '多数の隊士が糸に操られ全滅の危機に瀕する那田蜘蛛山。家族の偽りの絆を強要する十二鬼月・累の鋼鉄の糸が炭治郎の日輪刀を折る！ヒノカミ神楽が今、覚醒する。',
     bossCharacterId: 'demon_rui',
     bossName: '下弦の伍・累（るい）',
-    recommendedLevel: 18,
+    recommendedLevel: 21,
     unlockedRecruits: ['char_giyu', 'char_shinobu'],
     choices: [
       {
@@ -265,7 +265,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '短期間で40人以上が神隠しに遭った無限列車。炎柱・煉獄杏寿郎と合流した一行は夢の世界に閉じ込められる。夢を打ち破った先には、上弦の参・猗窩座が強襲！',
     bossCharacterId: 'demon_enmu_akaza',
     bossName: '魘夢 ＆ 上弦の参・猗窩座',
-    recommendedLevel: 24,
+    recommendedLevel: 27,
     unlockedRecruits: ['char_rengoku'],
     choices: [
       {
@@ -326,7 +326,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '不夜城・吉原遊郭に潜む上弦の陸。音柱・宇髄天元とともに潜入した炭治郎たち。堕姫の帯攻撃と、背中から現れた真の恐怖・妓夫太郎の猛毒血鎌が襲いかかる！',
     bossCharacterId: 'demon_daki_gyutaro',
     bossName: '上弦の陸・堕姫 ＆ 妓夫太郎',
-    recommendedLevel: 30,
+    recommendedLevel: 33,
     unlockedRecruits: ['char_tengen'],
     choices: [
       {
@@ -386,7 +386,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '刃毀れした刀を研ぎ直すため訪れた刀鍛冶の里。突如現れた上弦の肆・半天狗と上弦の伍・玉壺！時透の霞の記憶、蜜璃の恋の剛力、そして赫刀が闇を切り裂く！',
     bossCharacterId: 'demon_gyokko_hantengu',
     bossName: '上弦の肆・半天狗 ＆ 上弦の伍・玉壺',
-    recommendedLevel: 28,
+    recommendedLevel: 39,
     unlockedRecruits: ['char_muichiro', 'char_mitsuri'],
     choices: [
       {
@@ -446,7 +446,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '産屋敷邸の自爆から開かれた異空間・無限城。上弦の壱・黒死牟を打ち破り、柱全員と炭治郎たちが結集！太陽が昇るその瞬間まで、鬼の始祖・鬼舞辻無惨を繋ぎ止めよ！',
     bossCharacterId: 'demon_muzan_final',
     bossName: '鬼舞辻無惨（始祖形態）＆ 黒死牟',
-    recommendedLevel: 32,
+    recommendedLevel: 45,
     unlockedRecruits: ['char_gyomei', 'char_sanemi', 'char_obanai'],
     choices: [
       {
@@ -508,7 +508,7 @@ export const STORY_CHAPTERS: StoryChapter[] = [
     description: '無惨の怨念と血を注ぎ込まれ、日光を克服した「鬼の王」として覚醒してしまった炭治郎！太陽の下でも焼けず、暴走する炭治郎を仲間たちの絆で正気に戻し、人間に連れ戻せ！',
     bossCharacterId: 'demon_tanjiro',
     bossName: '鬼化・竈門炭治郎（鬼の王）',
-    recommendedLevel: 35,
+    recommendedLevel: 50,
     unlockedRecruits: ['char_tamayo', 'char_yushiro'],
     choices: [
       {

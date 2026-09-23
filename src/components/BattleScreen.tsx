@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Character, Skill, Item } from '../domain/models/types.ts';
+import { Character, Skill, Item, StoryChapter } from '../domain/models/types.ts';
 import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
 import { calculateDamage, isCriticalHit } from '../domain/services/DamageCalculator.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
@@ -22,6 +22,7 @@ interface BattleScreenProps {
   enemy: Character;
   enemies?: Character[];
   isBoss: boolean;
+  chapter?: StoryChapter;
   isEasyAssist?: boolean;
   onVictory: (expGained: number, moneyGained: number, leveledUp: { name: string; newLevel: number }[]) => void;
   onEscape: () => void;
@@ -43,11 +44,25 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   enemy: initialEnemy,
   enemies: initialEnemies,
   isBoss,
+  chapter,
   isEasyAssist = true,
   onVictory,
   onEscape,
   onWipeout,
 }) => {
+  // Helper to determine if an enemy is the final stage boss (最終ボス: 鬼の王・竈門炭治郎 or 鬼舞辻無惨)
+  const isFinalBossDemon = (e: Character): boolean => {
+    if (!e) return false;
+    if (e.id === 'demon_tanjiro' || e.id === 'demon_muzan_final') return true;
+    if (e.name.includes('鬼化・竈門炭治郎') || e.name.includes('鬼の王') || e.name.includes('鬼舞辻無惨')) return true;
+    if (chapter && chapter.chapterNumber >= 8 && isBoss) return true;
+    return false;
+  };
+
+  const isFinalStage = useMemo(() => {
+    if (chapter && chapter.chapterNumber >= 8) return true;
+    return isFinalBossDemon(initialEnemy) || (initialEnemies && initialEnemies.some(e => isFinalBossDemon(e)));
+  }, [chapter, initialEnemy, initialEnemies]);
   // Multi-enemy team state (1 to 4 enemies)
   const [enemies, setEnemies] = useState<Character[]>(() => {
     if (initialEnemies && initialEnemies.length > 0) {
@@ -68,10 +83,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     const list = (initialEnemies && initialEnemies.length > 0)
       ? initialEnemies
       : EnemyGroupService.resolveEnemies(initialEnemy, []);
-    if (list.length === 1) {
-      return [`${list[0].name} が あらわれた！`];
+    const appearMsg = list.length === 1
+      ? `${list[0].name} が あらわれた！`
+      : `${list.map(e => e.name).join('、')} が あらわれた！`;
+
+    if (chapter && chapter.chapterNumber >= 8) {
+      return [
+        appearMsg,
+        '⚠️【最終決戦・鬼の王の超再生】鬼の王は驚異の超再生力を誇る！『最強の呼吸（極限奥義）』でなければトドメを刺すことはできない！！'
+      ];
     }
-    return [`${list.map(e => e.name).join('、')} が あらわれた！`];
+    return [appearMsg];
   });
 
   const [isProcessingTurn, setIsProcessingTurn] = useState<boolean>(false);
@@ -278,8 +300,20 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             addLog(`【隙の糸が見えた！】会心の一撃！！`);
           }
 
-          const dmg = calculateDamage(actor, targetEnemy, undefined, isCrit, isEasyAssist);
-          targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - dmg);
+          const isFinal = isFinalBossDemon(targetEnemy);
+          let dmg = calculateDamage(actor, targetEnemy, undefined, isCrit, isEasyAssist);
+          if (isFinal) {
+            // Normal attacks cannot pierce the immortal demon body
+            dmg = Math.max(1, Math.round(dmg * 0.25));
+            addLog(`【鬼の王の硬質肉体】通常の攻撃では浅い傷しかつかない！最強の呼吸（奥義）でなければ致命傷を与えられない！`);
+          }
+
+          let newHp = targetEnemy.stats.hp - dmg;
+          if (isFinal && newHp <= 0) {
+            newHp = 1;
+            addLog(`⚠️【驚異の超再生！】鬼の王の肉体が瞬時に塞がる！最強の呼吸（奥義）でなければトドメを刺せない！`);
+          }
+          targetEnemy.stats.hp = Math.max(0, newHp);
           setEnemies([...currentEnemies]);
 
           setEnemyHitIndices([tIdx]);
@@ -290,7 +324,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
           addLog(`${targetEnemy.name} に ${dmg} の ダメージを あたえた！`);
           if (targetEnemy.stats.hp <= 0) {
-            addLog(`💥 ${targetEnemy.name} を たおした！`);
+            if (isFinal) {
+              addLog(`💥【滅殺！】${actor.name} の猛攻が鬼の王を打ち滅ぼした！！`);
+            } else {
+              addLog(`💥 ${targetEnemy.name} を たおした！`);
+            }
           }
           await delay(250);
 
@@ -340,11 +378,22 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               .filter(idx => idx >= 0);
 
             const hitMap: Record<number, { value: number; isCrit: boolean }> = {};
+            const isUltimate = isUltimateSkill(actor, skill);
+
             for (const idx of livingIndices) {
               const targetEnemy = currentEnemies[idx];
+              const isFinal = isFinalBossDemon(targetEnemy);
               const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
-              const dmg = calculateDamage(actor, targetEnemy, skill, isCrit, isEasyAssist);
-              targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - dmg);
+              let dmg = calculateDamage(actor, targetEnemy, skill, isCrit, isEasyAssist);
+              if (isFinal && isUltimate) {
+                dmg = Math.round(dmg * 1.3); // bonus devastation
+              }
+              let newHp = targetEnemy.stats.hp - dmg;
+              if (isFinal && !isUltimate && newHp <= 0) {
+                newHp = 1;
+                addLog(`⚠️【驚異の超再生！】鬼の王の肉体が瞬時に塞がる！最強の呼吸（奥義）でなければトドメを刺せない！`);
+              }
+              targetEnemy.stats.hp = Math.max(0, newHp);
               hitMap[idx] = { value: dmg, isCrit };
             }
 
@@ -357,9 +406,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
             for (const idx of livingIndices) {
               const targetEnemy = currentEnemies[idx];
+              const isFinal = isFinalBossDemon(targetEnemy);
               addLog(`${targetEnemy.name} に ${hitMap[idx].value} の 怒涛のダメージ！！`);
               if (targetEnemy.stats.hp <= 0) {
-                addLog(`💥 ${targetEnemy.name} を たおした！`);
+                if (isFinal) {
+                  addLog(`💥【滅殺！】${actor.name} の最強奥義『${skill.name}』が鬼の王の再生核を完全に両断した！！`);
+                } else {
+                  addLog(`💥 ${targetEnemy.name} を たおした！`);
+                }
               }
             }
             await delay(250);
@@ -372,14 +426,24 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             const targetEnemy = currentEnemies[tIdx];
             if (!targetEnemy || targetEnemy.stats.hp <= 0) continue;
 
+            const isFinal = isFinalBossDemon(targetEnemy);
+            const isUltimate = isUltimateSkill(actor, skill);
             const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
             if (isCrit) {
               SoundEngine.playCritical();
               addLog(`【隙の糸】呼吸の真髄が急所を貫く！！`);
             }
 
-            const dmg = calculateDamage(actor, targetEnemy, skill, isCrit, isEasyAssist);
-            targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - dmg);
+            let dmg = calculateDamage(actor, targetEnemy, skill, isCrit, isEasyAssist);
+            if (isFinal && isUltimate) {
+              dmg = Math.round(dmg * 1.3); // bonus devastation
+            }
+            let newHp = targetEnemy.stats.hp - dmg;
+            if (isFinal && !isUltimate && newHp <= 0) {
+              newHp = 1;
+              addLog(`⚠️【驚異の超再生！】鬼の王の肉体が瞬時に塞がる！最強の呼吸（奥義）でなければトドメを刺せない！`);
+            }
+            targetEnemy.stats.hp = Math.max(0, newHp);
             setEnemies([...currentEnemies]);
 
             setEnemyHitIndices([tIdx]);
@@ -390,7 +454,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
             addLog(`${targetEnemy.name} に ${dmg} の 怒涛のダメージ！！`);
             if (targetEnemy.stats.hp <= 0) {
-              addLog(`💥 ${targetEnemy.name} を たおした！`);
+              if (isFinal) {
+                addLog(`💥【滅殺！】${actor.name} の最強奥義『${skill.name}』が鬼の王の急所を断ち切った！ 永きにわたる鬼との死闘に終止符を打った！！`);
+              } else {
+                addLog(`💥 ${targetEnemy.name} を たおした！`);
+              }
             }
             await delay(250);
           }
@@ -674,6 +742,21 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         </div>
       </div>
 
+      {/* Final Stage Boss Special Banner */}
+      {isFinalStage && (
+        <div className="bg-gradient-to-r from-red-950 via-rose-900 to-amber-950 border border-amber-400/80 rounded px-3 py-1.5 text-xs text-amber-200 flex items-center justify-between shadow-lg animate-pulse">
+          <div className="flex items-center gap-2">
+            <Flame className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="font-bold">
+              【最終決戦・鬼の王の超再生】通常攻撃・初級技ではトドメを刺せません！『最強の呼吸（奥義）』でトドメを刺せ！
+            </span>
+          </div>
+          <span className="text-[10px] bg-red-800 text-white px-2 py-0.5 rounded font-black border border-amber-300 shrink-0">
+            最強の呼吸必須 ⚡
+          </span>
+        </div>
+      )}
+
       {/* Speed Action Order Bar (素早さ行動順・タイムライン) */}
       <div className="w-full bg-slate-900/95 border border-slate-700/80 rounded px-2.5 py-1.5 flex items-center justify-between gap-2 overflow-x-auto text-[11px] shadow-sm">
         <div className="flex items-center gap-1.5 shrink-0 text-amber-300 font-bold">
@@ -921,9 +1004,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   className="flex items-center gap-1.5 p-2.5 min-h-[46px] bg-slate-800 hover:bg-slate-700 active:bg-amber-600 rounded border border-slate-600 text-left transition-colors touch-manipulation"
                 >
                   <Swords className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span className="font-bold">
-                    <FuriganaText text="戦[たたか]う" />
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="font-bold">
+                      <FuriganaText text="戦[たたか]う" />
+                    </span>
+                    {isFinalStage && (
+                      <span className="text-[8px] text-amber-400/90 leading-none">※トドメ不可</span>
+                    )}
+                  </div>
                 </button>
 
                 <button
@@ -1023,9 +1111,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     <div className="flex-1 pr-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {isUltimate ? (
-                          <span className="px-1.5 py-0.5 text-[9px] font-black bg-gradient-to-r from-amber-500 to-red-500 text-slate-950 rounded flex items-center gap-0.5 shadow">
+                          <span className={`px-1.5 py-0.5 text-[9px] font-black rounded flex items-center gap-0.5 shadow ${
+                            isFinalStage
+                              ? 'bg-gradient-to-r from-red-500 via-amber-400 to-yellow-300 text-slate-950 ring-1 ring-amber-300 animate-pulse'
+                              : 'bg-gradient-to-r from-amber-500 to-red-500 text-slate-950'
+                          }`}>
                             <Flame className="w-2.5 h-2.5 text-slate-950" />
-                            【最強奥義】
+                            {isFinalStage ? '【★最強奥義・トドメ有効】' : '【最強奥義】'}
                           </span>
                         ) : sk.breathStyle !== 'none' ? (
                           <span className="px-1.5 py-0.5 text-[9px] font-bold bg-cyan-700 text-white rounded">

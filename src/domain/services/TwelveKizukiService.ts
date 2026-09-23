@@ -19,63 +19,63 @@ export const UPPER_MOON_LIST: UpperMoonTarget[] = [
     aliasIds: ['demon_daki_gyutaro'],
     name: '堕姫（だき）',
     rankTitle: '上弦の陸',
-    level: 27
+    level: 51
   },
   {
     id: 'demon_gyutaro',
     aliasIds: ['demon_daki_gyutaro'],
     name: '妓夫太郎（ぎゅうたろう）',
     rankTitle: '上弦の陸',
-    level: 30
+    level: 51
   },
   {
     id: 'demon_kaigaku',
     aliasIds: [],
     name: '獪岳（かいがく・鬼）',
     rankTitle: '新・上弦の陸',
-    level: 32
+    level: 51
   },
   {
     id: 'demon_gyokko',
     aliasIds: ['demon_gyokko_hantengu'],
     name: '玉壺（ぎょっこ）',
     rankTitle: '上弦の伍',
-    level: 34
+    level: 52
   },
   {
     id: 'demon_zohakuten',
     aliasIds: ['demon_gyokko_hantengu'],
     name: '半天狗・憎珀天（ぞうはくてん）',
     rankTitle: '上弦の肆',
-    level: 37
+    level: 52
   },
   {
     id: 'demon_nakime',
     aliasIds: [],
     name: '鳴女（なきめ）',
     rankTitle: '新・上弦の肆',
-    level: 35
+    level: 53
   },
   {
     id: 'demon_akaza',
     aliasIds: ['demon_enmu_akaza'],
     name: '猗窩座（あかざ）',
     rankTitle: '上弦の参',
-    level: 28
+    level: 50
   },
   {
     id: 'demon_doma',
     aliasIds: [],
     name: '童磨（どうま）',
     rankTitle: '上弦の弐',
-    level: 40
+    level: 54
   },
   {
     id: 'demon_kokushibo',
     aliasIds: ['demon_muzan_final'],
     name: '黒死牟（こくしぼう）',
     rankTitle: '上弦の壱',
-    level: 43
+    level: 55
   }
 ];
 
@@ -99,7 +99,7 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
     demonId: 'demon_kamanue',
     bossName: '下弦の陸・釜鵺',
     rankTitle: '下弦の陸',
-    recommendedLevel: 14,
+    recommendedLevel: 46,
     description: '無惨の粛清から辛うじて逃亡した下弦の陸・釜鵺！藤襲山の結界の狭間に身を潜めていた。',
     hint: '藤襲山の巨木と岩の裂け目から異様な骨の擦れ合う音が聞こえる…！'
   },
@@ -110,7 +110,7 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
     demonId: 'demon_mukago',
     bossName: '下弦の肆・零余子',
     rankTitle: '下弦の肆',
-    recommendedLevel: 18,
+    recommendedLevel: 47,
     description: '柱との遭遇を極限まで恐れ、浅草の大都会の地下水路に逃げ込んでいた下弦の肆・零余子！',
     hint: '浅草の賑やかな路地の地下マンホールから、怯えと殺意を孕む冷気が立ち上る…！'
   },
@@ -121,7 +121,7 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
     demonId: 'demon_wakuraba',
     bossName: '下弦の参・病葉',
     rankTitle: '下弦の参',
-    recommendedLevel: 22,
+    recommendedLevel: 48,
     description: '十字傷を持つ逃走の達人・下弦の参・病葉！回転する屋敷の奥の隠し部屋から神速の刃を放つ。',
     hint: '鼓屋敷の壁の回転が止まった奥、封印された襖の向こうから突風が吹き荒れている…！'
   },
@@ -132,7 +132,7 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
     demonId: 'demon_rokuro',
     bossName: '下弦の弐・轆轤',
     rankTitle: '下弦の弐',
-    recommendedLevel: 25,
+    recommendedLevel: 49,
     description: '更なる血肉の怪力を求め、蜘蛛山の最深部で肉体を巨大化させていた下弦の弐・轆轤！',
     hint: '那田蜘蛛山の谷底、毒繭に覆われた暗黒の洞穴から地響きのような唸り声が響く…！'
   },
@@ -143,7 +143,7 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
     demonId: 'demon_enmu',
     bossName: '下弦の壱・真 魘夢',
     rankTitle: '下弦の壱',
-    recommendedLevel: 28,
+    recommendedLevel: 50,
     description: '無限列車と一体化した真の姿！心地よい悪夢を見せて精神の核を破壊しようと襲いかかる。',
     hint: '煙を噴き上げる機関車の屋根の上、甘美な眠りの囁きが夜風に乗って聞こえてくる…！'
   },
@@ -154,7 +154,7 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
     demonId: 'demon_kaigaku',
     bossName: '新・上弦の陸・獪岳（鬼）',
     rankTitle: '新・上弦の陸',
-    recommendedLevel: 32,
+    recommendedLevel: 51,
     description: '善逸の兄弟子でありながら鬼に成り下がった男。皮膚をひび割れ焦がす黒い雷で立ちはだかる。',
     hint: '遊郭の屋根の上に不気味な黒い稲妻が閃光を放ち、雷鳴が轟いている…！'
   },
@@ -165,7 +165,7 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
     demonId: 'demon_gyokko',
     bossName: '上弦の伍・玉壺（完全体）',
     rankTitle: '上弦の伍',
-    recommendedLevel: 35,
+    recommendedLevel: 52,
     description: '神出鬼没の芸術家気取り鬼！蛸壺地獄と毒針魚を放ち、里の温泉を毒へと変える。',
     hint: '里の奥の温泉から無数の奇怪な壺と巨大な触手が現れ、異臭を放っている…！'
   },
@@ -176,9 +176,20 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
     demonId: 'demon_nakime',
     bossName: '新・上弦の肆・鳴女',
     rankTitle: '新・上弦の肆',
-    recommendedLevel: 38,
+    recommendedLevel: 53,
     description: '無限城の空間を自在に操る単眼の琵琶弾き！空間を捻じ曲げて隊士たちを惑わす。',
     hint: '無限城の楼閣が逆さまに回転し、妖艶な琵琶の音色が空間を切り裂く…！'
+  },
+  {
+    chapterNumber: 9,
+    stageName: '第9章: 黎明の廃墟',
+    hiddenSpotName: '黎明の廃墟・万世極楽教の氷結殿',
+    demonId: 'demon_doma',
+    bossName: '上弦の弐・童磨（極限氷結）',
+    rankTitle: '上弦の弐',
+    recommendedLevel: 54,
+    description: '冷気を操る万世極楽教の教祖・上弦の弐・童磨！粉微塵の氷の蓮華と巨大な氷人形を召喚する。',
+    hint: '黎明の廃墟の氷柱の奥から、美しい仏像と凍てつく吹雪が舞い散る…！'
   }
 ];
 

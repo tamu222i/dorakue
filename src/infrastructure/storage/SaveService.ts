@@ -108,12 +108,21 @@ export class SaveService {
   }
 
   /**
-   * Delete save data and reset
+   * Delete save data and reset all game-related storage
    */
   public static clearSave(): void {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem(SAVE_KEY);
+        // Clean up all kimetsu-related keys to guarantee complete deletion
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const key = window.localStorage.key(i);
+          if (key && (key.startsWith('kimetsu_') || key.includes('kimetsu'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => window.localStorage.removeItem(k));
       }
     } catch (e) {
       console.error('Failed to clear save:', e);
