@@ -392,9 +392,63 @@ async function runTests() {
   assert(groupLv10.length >= 1 && groupLv10.length <= 4, `Then: Training group has 1-4 enemies (actual: ${groupLv10.length})`);
   assert(groupLv10.every(e => e.level === 10), 'Then: All generated enemies are scaled exactly to target level 10');
   assert(groupLv10.every(e => EnemyGroupService.isMobDemon(e)), 'Then: All generated enemies in group are pure mob demons (no bosses)');
-  assert(groupLv10.every(e => e.stats.maxHp < 500 && e.stats.maxHp > 50), 'Then: Mob demons have fair, grindable HP (not boss-tier 4000+ HP)');
+  assert(groupLv10.every(e => e.stats.maxHp >= 500 && e.stats.maxHp <= 800), 'Then: Lv.10 mob demons have robust HP (500-800) bridging the gap with bosses');
 
-  // 3. 4 difficulty tiers scale from slightly weaker to stronger based on party level
+  // Verify mob stats bridge the gap with bosses across levels
+  const groupLv1 = EnemyGroupService.createTrainingMobGroup(catalog, 1, 1);
+  assert(groupLv1[0].stats.maxHp >= 90 && groupLv1[0].stats.maxHp <= 140, 'Then: Lv.1 mob has ~100 HP (takes multiple hits, not one-shot)');
+  const groupLv21 = EnemyGroupService.createTrainingMobGroup(catalog, 21, 1);
+  assert(groupLv21[0].stats.maxHp >= 1100 && groupLv21[0].stats.maxHp <= 1600, 'Then: Lv.21 mob has ~1300 HP (bridges the gap with Rui 2200 HP)');
+  assert(groupLv21[0].skills.some(s => s.name === '血鬼爪・連撃'), 'Then: High level mob demon has ferocious skill (血鬼爪・連撃)');
+
+  // 3. 2-3 battles guarantee level-up across levels
+  // Simulation for Level 1:
+  const p1 = new PartyAggregate({
+    ...tanjiro!,
+    level: 1,
+    exp: 0,
+    nextExp: PartyAggregate.calculateNextExp(1)
+  });
+  assert(p1.activeMembers[0].nextExp === 420, 'Then: Lv.1 nextExp is calibrated to 420');
+  // Battle 1 (2 enemies of Lv.1):
+  const expLv1Battle = 2 * (1 * 40 + 20) + 50; // 170
+  p1.addExpAndMoney(expLv1Battle, 50);
+  assert(p1.activeMembers[0].level === 1, 'Then: 1 battle does not prematurely level up');
+  p1.addExpAndMoney(expLv1Battle, 50); // 340 total
+  assert(p1.activeMembers[0].level === 1, 'Then: 2 battles leaves party close to level up (340/420)');
+  const winLv1_3 = p1.addExpAndMoney(expLv1Battle, 50); // 510 total -> level up!
+  assert(p1.activeMembers[0].level === 2, 'Then: 3 battles grants level up to Lv.2 (2〜3勝でレベルアップ)');
+  assert(winLv1_3.leveledUp.length === 1 && winLv1_3.leveledUp[0].newLevel === 2, 'Then: Leveled up record emitted');
+
+  // Simulation for Level 10:
+  const p10 = new PartyAggregate({
+    ...tanjiro!,
+    level: 10,
+    exp: 0,
+    nextExp: PartyAggregate.calculateNextExp(10)
+  });
+  const expLv10Battle = 2 * (10 * 40 + 20) + 50; // 890
+  p10.addExpAndMoney(expLv10Battle, 100);
+  p10.addExpAndMoney(expLv10Battle, 100);
+  assert(p10.activeMembers[0].level === 10, 'Then: Lv.10 after 2 battles is near level up (1780/2220)');
+  p10.addExpAndMoney(expLv10Battle, 100); // 2670 total -> level up!
+  assert(p10.activeMembers[0].level === 11, 'Then: Lv.10 levels up to Lv.11 after 3 battles (2〜3勝でレベルアップ)');
+
+  // Simulation for Level 25:
+  const p25 = new PartyAggregate({
+    ...tanjiro!,
+    level: 25,
+    exp: 0,
+    nextExp: PartyAggregate.calculateNextExp(25)
+  });
+  const expLv25Battle = 2 * (25 * 40 + 20) + 50; // 2090
+  p25.addExpAndMoney(expLv25Battle, 150);
+  p25.addExpAndMoney(expLv25Battle, 150);
+  assert(p25.activeMembers[0].level === 25, 'Then: Lv.25 after 2 battles is near level up (4180/5220)');
+  p25.addExpAndMoney(expLv25Battle, 150);
+  assert(p25.activeMembers[0].level === 26, 'Then: Lv.25 levels up to Lv.26 after 3 battles (2〜3勝でレベルアップ)');
+
+  // 4. 4 difficulty tiers scale from slightly weaker to stronger based on party level
   const calcTiers = (partyLvl: number) => {
     const tier1 = Math.max(1, partyLvl <= 3 ? 1 : partyLvl - 3);
     const tier2 = Math.max(1, partyLvl <= 1 ? 2 : partyLvl);

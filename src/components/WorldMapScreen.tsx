@@ -398,10 +398,15 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                   <Sparkles className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
                   <FuriganaText text="レベル上[あ]げ修[しゅ]業[ぎょう]場[じょう]（パーティ現在[げんざい]Lvに応[おう]じた4段階[だんかい]）" />
                 </span>
-                <span className="text-[11px] text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800 self-start sm:self-auto font-bold flex items-center gap-1">
-                  <span>隊員平均:</span>
-                  <span className="text-yellow-300 font-extrabold">Lv.{partyCurrentLevel}</span>
-                </span>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="text-[10px] text-amber-300/95 bg-amber-950/70 px-2 py-0.5 rounded border border-amber-800/80 font-bold">
+                    🔥 約2〜3戦でLv.UP！
+                  </span>
+                  <span className="text-[11px] text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800 font-bold flex items-center gap-1">
+                    <span>隊員平均:</span>
+                    <span className="text-yellow-300 font-extrabold">Lv.{partyCurrentLevel}</span>
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">

@@ -18,7 +18,17 @@ export class PartyAggregate {
     { id: 'item_talisman', name: '厄除の御守り', description: '【常時自動適用】厄を祓う御守り。持っているだけで防御力+10、最大HP+25。', cost: 100, type: 'buff', value: 10, count: 1 },
   ];
 
+  /**
+   * Calculates required EXP for the next level.
+   * Calibrated so that winning 2 to 3 battles against level-appropriate mob groups
+   * consistently grants a level-up.
+   */
+  public static calculateNextExp(level: number): number {
+    return Math.round(level * 200 + 220);
+  }
+
   constructor(leadHero: Character) {
+    leadHero.nextExp = PartyAggregate.calculateNextExp(leadHero.level);
     this.activeMembers = [leadHero];
     this.roster = [leadHero];
   }
@@ -30,7 +40,10 @@ export class PartyAggregate {
     inventory: Item[]
   ): void {
     if (roster && roster.length > 0) {
-      this.roster = roster;
+      this.roster = roster.map(m => ({
+        ...m,
+        nextExp: m.nextExp && m.nextExp > 0 ? m.nextExp : PartyAggregate.calculateNextExp(m.level)
+      }));
     }
     if (activeMemberIds && activeMemberIds.length > 0) {
       const restoredActive = activeMemberIds
@@ -61,6 +74,7 @@ export class PartyAggregate {
       return false;
     }
     candidate.isUnlocked = true;
+    candidate.nextExp = PartyAggregate.calculateNextExp(candidate.level);
     this.roster.push(candidate);
 
     // If active party has less than 4, auto add
@@ -160,7 +174,7 @@ export class PartyAggregate {
       while (member.exp >= member.nextExp) {
         member.exp -= member.nextExp;
         member.level += 1;
-        member.nextExp = Math.round(member.nextExp * 1.35) + 15;
+        member.nextExp = PartyAggregate.calculateNextExp(member.level);
 
         // Stat growth
         const hpUp = 12 + Math.floor(Math.random() * 8);

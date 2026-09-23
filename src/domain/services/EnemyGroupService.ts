@@ -45,7 +45,7 @@ const SWAMP_SKILLS: Record<string, Skill> = {
   }
 };
 
-// Standard skills for wild mob demons (scratch, bite, pounce, roar)
+// Standard skills for wild mob demons (scratch, bite, pounce, claw combo, roar)
 const MOB_ATTACK_SKILLS: Record<string, Skill> = {
   scratch: {
     id: 'sk_mob_scratch',
@@ -53,7 +53,7 @@ const MOB_ATTACK_SKILLS: Record<string, Skill> = {
     katagaki: '爪攻撃',
     breathStyle: 'none',
     bpCost: 0,
-    power: 75,
+    power: 85,
     target: 'single',
     effectType: 'damage',
     description: '鋭い鉤爪を振り下ろして引っ掻く。',
@@ -65,7 +65,7 @@ const MOB_ATTACK_SKILLS: Record<string, Skill> = {
     katagaki: '牙攻撃',
     breathStyle: 'none',
     bpCost: 4,
-    power: 95,
+    power: 105,
     target: 'single',
     effectType: 'damage',
     description: '鋭い牙を剥き出しにして肉片を食いちぎる。',
@@ -77,10 +77,22 @@ const MOB_ATTACK_SKILLS: Record<string, Skill> = {
     katagaki: '肉弾強襲',
     breathStyle: 'none',
     bpCost: 6,
-    power: 110,
+    power: 125,
     target: 'single',
     effectType: 'damage',
     description: '全速力で飛びかかり、押し倒して爪を立てる。',
+    animation: 'beast_fangs'
+  },
+  claw_combo: {
+    id: 'sk_mob_claw_combo',
+    name: '血鬼爪・連撃',
+    katagaki: '血鬼連爪',
+    breathStyle: 'blood',
+    bpCost: 7,
+    power: 140,
+    target: 'single',
+    effectType: 'damage',
+    description: '血をたぎらせた爪で激しい連続斬撃を繰り出す。',
     animation: 'beast_fangs'
   },
   roar: {
@@ -89,7 +101,7 @@ const MOB_ATTACK_SKILLS: Record<string, Skill> = {
     katagaki: '威嚇',
     breathStyle: 'none',
     bpCost: 8,
-    power: 85,
+    power: 95,
     target: 'all',
     effectType: 'damage',
     description: '耳をつんざく咆哮を放ち、周囲の隊士全体に衝撃を与える。',
@@ -434,7 +446,8 @@ export class EnemyGroupService {
 
   /**
    * Scales a wild mob demon's level and stats appropriately for the target level.
-   * Keeps stats balanced so party members are not one-shot killed and can level up smoothly.
+   * Strengthened so mob demons offer a worthy challenge, closing the huge disparity with bosses,
+   * while ensuring a party wins in 2-3 turns without unfair wipeouts.
    */
   public static scaleMobDemonToLevel(baseMob: Character, targetLevel: number): Character {
     const safeTargetLevel = Math.max(1, targetLevel);
@@ -443,33 +456,30 @@ export class EnemyGroupService {
     // Select skills appropriate for scaled level
     let mobSkills: Skill[];
     if (safeTargetLevel <= 3) {
-      mobSkills = [MOB_ATTACK_SKILLS.scratch];
-    } else if (safeTargetLevel <= 7) {
       mobSkills = [MOB_ATTACK_SKILLS.scratch, MOB_ATTACK_SKILLS.bite];
-    } else if (safeTargetLevel <= 15) {
+    } else if (safeTargetLevel <= 8) {
       mobSkills = [MOB_ATTACK_SKILLS.scratch, MOB_ATTACK_SKILLS.bite, MOB_ATTACK_SKILLS.pounce];
-    } else {
+    } else if (safeTargetLevel <= 18) {
       mobSkills = [MOB_ATTACK_SKILLS.scratch, MOB_ATTACK_SKILLS.bite, MOB_ATTACK_SKILLS.pounce, MOB_ATTACK_SKILLS.roar];
+    } else {
+      mobSkills = [MOB_ATTACK_SKILLS.bite, MOB_ATTACK_SKILLS.pounce, MOB_ATTACK_SKILLS.claw_combo, MOB_ATTACK_SKILLS.roar];
     }
 
-    if (safeTargetLevel === baseLevel) {
-      return {
-        ...baseMob,
-        skills: mobSkills,
-        stats: { ...baseMob.stats }
-      };
-    }
+    // Strengthened mob stats formula (bridges the disparity with bosses!):
+    // Target HP:
+    // Lv.1: ~100 HP (takes 3-4 hits from starter slayers instead of dying in 1 hit)
+    // Lv.6: ~380 HP (Ch.1 Hand Demon boss is 500 HP; a pair of mobs has ~760 HP)
+    // Lv.10: ~620 HP (bridges between Ch.1 500 HP and Ch.3 1100 HP)
+    // Lv.21: ~1300 HP (Ch.4 Rui boss is 2200 HP; a pair of mobs has ~2600 HP)
+    // Lv.30: ~1900 HP (Enmu/Akaza/Daki bridge)
+    // Lv.45: ~2900 HP (Muzan is 5200 HP; a pair of mobs has ~5800 HP)
+    const baseTargetHp = 60 + safeTargetLevel * 40 + Math.round(Math.pow(safeTargetLevel, 1.22) * 10);
+    const mobHpFactor = Math.max(0.85, Math.min(1.20, (baseMob.stats.maxHp / (baseLevel * 20 + 25))));
+    const scaledMaxHp = Math.round(baseTargetHp * mobHpFactor);
 
-    const ratio = safeTargetLevel / baseLevel;
-    // Balanced mob stats:
-    // At Lv.1 ~35 HP, 14 Atk, 8 Def, 16 Spd.
-    // At Lv.10 ~180 HP, 55 Atk, 38 Def, 30 Spd.
-    // At Lv.25 ~560 HP, 116 Atk, 85 Def, 53 Spd.
-    // At Lv.45 ~1050 HP, 170 Atk, 125 Def, 72 Spd.
-    const scaledMaxHp = Math.max(35, Math.round(baseMob.stats.maxHp * Math.pow(ratio, 1.05)));
-    const scaledAttack = Math.max(12, Math.round(baseMob.stats.attack * Math.pow(ratio, 0.72)));
-    const scaledDefense = Math.max(6, Math.round(baseMob.stats.defense * Math.pow(ratio, 0.70)));
-    const scaledSpeed = Math.max(12, Math.round(baseMob.stats.speed * Math.pow(ratio, 0.50)));
+    const scaledAttack = Math.round(16 + safeTargetLevel * 3.3 + Math.pow(safeTargetLevel, 1.05) * 0.4);
+    const scaledDefense = Math.round(10 + safeTargetLevel * 2.5 + Math.pow(safeTargetLevel, 1.02) * 0.3);
+    const scaledSpeed = Math.round(14 + safeTargetLevel * 1.5);
 
     return {
       ...baseMob,
@@ -509,6 +519,7 @@ export class EnemyGroupService {
 
     if (pool.length === 0) {
       // Fallback safe dummy mob if pool is somehow empty
+      const dummyMaxHp = 60 + safeLevel * 40 + Math.round(Math.pow(safeLevel, 1.22) * 10);
       const dummy: Character = {
         id: 'demon_mob_dummy',
         catalogNo: 201,
@@ -521,16 +532,16 @@ export class EnemyGroupService {
         exp: 0,
         nextExp: 0,
         stats: {
-          maxHp: 35 + safeLevel * 18,
-          hp: 35 + safeLevel * 18,
+          maxHp: dummyMaxHp,
+          hp: dummyMaxHp,
           maxBp: 20 + safeLevel * 2,
           bp: 20 + safeLevel * 2,
-          attack: 14 + Math.round(safeLevel * 3.2),
-          defense: 8 + Math.round(safeLevel * 2.2),
-          speed: 15 + Math.round(safeLevel * 1.1),
+          attack: Math.round(16 + safeLevel * 3.3 + Math.pow(safeLevel, 1.05) * 0.4),
+          defense: Math.round(10 + safeLevel * 2.5 + Math.pow(safeLevel, 1.02) * 0.3),
+          speed: Math.round(14 + safeLevel * 1.5),
           luck: 10
         },
-        skills: [MOB_ATTACK_SKILLS.scratch],
+        skills: [MOB_ATTACK_SKILLS.scratch, MOB_ATTACK_SKILLS.bite],
         spriteConfig: {
           hairColor: '#1e293b',
           skinColor: '#cbd5e1',

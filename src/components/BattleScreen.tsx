@@ -604,10 +604,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       await delay(800);
 
       const expReward = Math.round(
-        currentEnemies.reduce((sum, e) => sum + e.level * 25, 0) + (isBoss ? 250 : 40)
+        currentEnemies.reduce((sum, e) => sum + (e.level * 40 + 20), 0) + (isBoss ? 450 : 50)
       );
       const moneyReward = Math.round(
-        currentEnemies.reduce((sum, e) => sum + e.level * 20, 0) + (isBoss ? 350 : 60)
+        currentEnemies.reduce((sum, e) => sum + (e.level * 22 + 15), 0) + (isBoss ? 400 : 60)
       );
       const { leveledUp, learnedSkills } = party.addExpAndMoney(expReward, moneyReward);
 
@@ -622,6 +622,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         for (const ls of learnedSkills) {
           addLog(`✨【新呼吸会得！】${ls.characterName} は 新たな型『${ls.skill.name}』を会得した！！`);
         }
+      }
+
+      // Dragon Quest style level progress indicator
+      const nonLeveled = party.activeMembers.filter(m => !leveledUp.some(l => l.name === m.name));
+      if (nonLeveled.length > 0) {
+        const lead = nonLeveled[0];
+        const remainingExp = Math.max(0, lead.nextExp - lead.exp);
+        addLog(`【鍛錬進捗】${lead.name}: つぎのレベルまで あと ${remainingExp} 経験値（あと1〜2勝でLv.UP!）`);
       }
 
       await delay(1200);
