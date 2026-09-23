@@ -30,7 +30,7 @@ import { FuriganaText } from './components/Ruby.tsx';
 import { PixelSprite } from './infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from './infrastructure/audio/RetroSound.ts';
 import { BgmEngine, BgmTrackId, TRACKS } from './infrastructure/audio/RetroBGM.ts';
-import { Sparkles, Award, RefreshCw, Flame, Save, RotateCcw, Check, BookOpen, Music, Volume2, VolumeX, Users, ShieldCheck } from 'lucide-react';
+import { Sparkles, Award, RefreshCw, Flame, Save, RotateCcw, Check, BookOpen, Music, Volume2, VolumeX, Users, ShieldCheck, Swords, UserPlus, Bed, Compass } from 'lucide-react';
 
 type GameScreen = 'world' | 'battle' | 'inn' | 'zukan' | 'story' | 'ending';
 
@@ -111,6 +111,7 @@ export default function App() {
   } | null>(null);
 
   const [innMessage, setInnMessage] = useState<string | undefined>();
+  const [innActiveTab, setInnActiveTab] = useState<'rest' | 'scout' | 'formation' | 'shop'>('rest');
   const [rosterVersion, setRosterVersion] = useState<number>(0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
   const [recruitmentEvent, setRecruitmentEvent] = useState<RecruitmentEvent | null>(null);
@@ -130,14 +131,19 @@ export default function App() {
 
   // Beginner Mode / 初心者お助けモード (Top screen control, persisted in localStorage)
   const [isEasyAssist, setIsEasyAssist] = useState<boolean>(() => {
-    return localStorage.getItem('kimetsu_easy_assist') !== 'false';
+    if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+      return window.localStorage.getItem('kimetsu_easy_assist') !== 'false';
+    }
+    return true;
   });
 
   const toggleEasyAssist = () => {
     SoundEngine.playConfirm();
     setIsEasyAssist(prev => {
       const next = !prev;
-      localStorage.setItem('kimetsu_easy_assist', String(next));
+      if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+        window.localStorage.setItem('kimetsu_easy_assist', String(next));
+      }
       return next;
     });
   };
@@ -177,12 +183,15 @@ export default function App() {
     }
 
     let targetTrack: BgmTrackId = 'gurenge';
-    if (screen === 'inn') {
+    if (screen === 'ending') {
+      targetTrack = 'kizuna'; // エンディング・感動の大団円:「絆ノ奇跡」
+    } else if (screen === 'inn') {
       targetTrack = 'homura'; // 藤の家紋の宿: バラード「炎」
     } else if (screen === 'battle') {
       targetTrack = currentBattle?.isBoss ? 'zankyou' : 'gurenge'; // ボス戦:「残響散歌」 / 通常戦:「紅蓮華」
     } else {
-      targetTrack = 'gurenge'; // フィールド・ストーリー・図鑑:「紅蓮華」
+      // ユーザーが手動で「絆ノ奇跡」を選択している場合は維持、それ以外はフィールド「紅蓮華」
+      targetTrack = (bgmTrack === 'kizuna') ? 'kizuna' : 'gurenge';
     }
 
     setBgmTrack(targetTrack);
@@ -426,8 +435,12 @@ export default function App() {
     setScreen('battle');
   };
 
-  // Handle Starting a 2nd Playthrough Hidden Twelve Kizuki Battle ("ストーリーで出て来ない12鬼月は2周目の各ステージに隠れているよ")
+  // Handle Starting a 2nd Playthrough Hidden Twelve Kizuki Battle ("2周目は1周目クリアしないと闘えない")
   const handleStartHiddenKizukiBattle = (encounter: HiddenKizukiEncounter) => {
+    if (!hasClearedNormal) {
+      SoundEngine.playCancel();
+      return;
+    }
     SoundEngine.playConfirm();
     let enemy = catalog.find(c => c.id === encounter.demonId);
     if (!enemy) {
@@ -631,40 +644,69 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] font-mono flex-wrap">
-            {/* Quick Formation Swap Button */}
+            {/* 討伐モード Button */}
             <button
               onClick={() => {
                 SoundEngine.playConfirm();
-                setIsFormationModalOpen(true);
+                setScreen('world');
               }}
-              disabled={screen === 'battle'}
-              className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
-                screen === 'battle'
-                  ? 'border-slate-800 bg-slate-900 text-slate-600 cursor-not-allowed'
-                  : 'border-cyan-400 bg-cyan-950/90 hover:bg-cyan-900 text-cyan-200 shadow-sm'
+              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
+                screen === 'world' || screen === 'battle'
+                  ? 'border-red-400 bg-red-950 text-red-200 shadow-sm ring-1 ring-red-400/50'
+                  : 'border-red-800 bg-red-950/60 hover:bg-red-900 text-red-300'
               }`}
-              title="前線隊士の入れ替え・好きな隊士の特別招集"
+              title="鬼の討伐・探索・ボス戦へ移動"
             >
-              <Users className="w-3 h-3 text-cyan-300" />
-              <span><FuriganaText text="部隊[ぶたい]編成[へんせい]" /></span>
+              <Swords className="w-3.5 h-3.5 text-red-400" />
+              <span><FuriganaText text="討伐[とうばつ]モード" /></span>
             </button>
 
-            {/* Story Mode Quick Jump */}
+            {/* 勧誘モード Button (柱稽古・試練による仲間勧誘へ直通) */}
             <button
               onClick={() => {
                 SoundEngine.playConfirm();
                 setScreen('story');
               }}
-              className="px-2 py-0.5 rounded border border-purple-500 bg-purple-950/80 hover:bg-purple-900 text-purple-200 font-bold flex items-center gap-1 transition-all touch-manipulation"
+              disabled={screen === 'battle'}
+              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
+                screen === 'battle'
+                  ? 'border-slate-800 bg-slate-900 text-slate-600 cursor-not-allowed'
+                  : screen === 'story' || (screen === 'inn' && innActiveTab === 'scout')
+                  ? 'border-cyan-400 bg-cyan-950 text-cyan-200 shadow-sm ring-1 ring-cyan-400/50'
+                  : 'border-cyan-800 bg-cyan-950/60 hover:bg-cyan-900 text-cyan-300'
+              }`}
+              title="鬼殺隊の各章の仲間・柱を勧誘する（柱稽古＆試練）"
             >
-              <BookOpen className="w-3 h-3 text-amber-300" />
-              <span><FuriganaText text="物語[ものがたり]モード" /></span>
+              <UserPlus className="w-3.5 h-3.5 text-cyan-400" />
+              <span><FuriganaText text="勧誘[かんゆう]モード" /></span>
+            </button>
+
+            {/* 宿モード Button (藤の家紋の宿屋・休息へ直通) */}
+            <button
+              onClick={() => {
+                SoundEngine.playConfirm();
+                setInnActiveTab('rest');
+                setInnMessage(undefined);
+                setScreen('inn');
+              }}
+              disabled={screen === 'battle'}
+              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
+                screen === 'battle'
+                  ? 'border-slate-800 bg-slate-900 text-slate-600 cursor-not-allowed'
+                  : screen === 'inn' && innActiveTab !== 'scout'
+                  ? 'border-amber-400 bg-amber-950 text-amber-200 shadow-sm ring-1 ring-amber-400/50'
+                  : 'border-amber-800 bg-amber-950/60 hover:bg-amber-900 text-amber-300'
+              }`}
+              title="藤の家紋の宿屋で休息・HP全回復・道具購入"
+            >
+              <Bed className="w-3.5 h-3.5 text-amber-400" />
+              <span><FuriganaText text="宿[やど]モード" /></span>
             </button>
 
             {/* Beginner Mode Toggle (Top Screen Header) */}
             <button
               onClick={toggleEasyAssist}
-              className={`px-2.5 py-0.5 rounded border font-bold flex items-center gap-1.5 transition-all touch-manipulation ${
+              className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1.5 transition-all touch-manipulation ${
                 isEasyAssist
                   ? 'border-emerald-400 bg-emerald-950/90 text-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
                   : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'
@@ -673,7 +715,7 @@ export default function App() {
             >
               <ShieldCheck className={`w-3.5 h-3.5 ${isEasyAssist ? 'text-emerald-400' : 'text-slate-500'}`} />
               <span>
-                <FuriganaText text={isEasyAssist ? '🔰初心者[しょしんしゃ]モード:ON' : '初心者[しょしんしゃ]モード:OFF'} />
+                <FuriganaText text={isEasyAssist ? '🔰初心者[しょしんしゃ]:ON' : '初心者[しょしんしゃ]:OFF'} />
               </span>
             </button>
 
@@ -685,7 +727,7 @@ export default function App() {
                   ? 'border-slate-700 bg-slate-900 text-slate-400 hover:text-white'
                   : 'border-amber-400 bg-amber-950/90 text-amber-200 shadow-sm animate-pulse'
               }`}
-              title="クリックで鬼滅の刃BGM切り替え（紅蓮華・炎・残響散歌・消音）"
+              title="クリックで鬼滅の刃BGM切り替え（紅蓮華・炎・残響散歌・絆ノ奇跡・消音）"
             >
               {bgmTrack === 'none' ? (
                 <VolumeX className="w-3.5 h-3.5 text-slate-400" />
@@ -694,8 +736,9 @@ export default function App() {
               )}
               <span>
                 {bgmTrack === 'gurenge' && '♪ 紅蓮華'}
-                {bgmTrack === 'homura' && '♪ 炎(ほむら)'}
-                {bgmTrack === 'zankyou' && '♪ 残響散歌'}
+                {bgmTrack === 'homura' && '♪ 炎'}
+                {bgmTrack === 'zankyou' && '♪ 残響'}
+                {bgmTrack === 'kizuna' && '♪ 絆'}
                 {bgmTrack === 'none' && 'BGM切'}
               </span>
             </button>
@@ -723,19 +766,9 @@ export default function App() {
               )}
             </div>
 
-            {/* Prominent Reset Button ("最初からやり直しがどこにあるか分かりづらい。。") */}
-            <button
-              onClick={handleResetGame}
-              className="px-2 py-0.5 rounded border border-rose-500/90 bg-rose-950/80 hover:bg-rose-900 active:bg-rose-950 text-rose-200 font-bold flex items-center gap-1 transition-all shadow-sm touch-manipulation"
-              title="セーブデータを消去して第1章から最初からやり直す"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
-              <span><FuriganaText text="最初[さいしょ]からやり直[なお]す" /></span>
-            </button>
-
             <span className="text-slate-400">
               討伐: <span className="text-amber-300 font-bold">
-                {currentChapterIndex >= 8 ? '★最終隠し第9章（鬼の王）' : `第${currentChapterIndex + 1}章/全8章`}
+                {currentChapterIndex >= 8 ? '★第9章' : `第${currentChapterIndex + 1}章`}
               </span>
             </span>
             <span className="text-yellow-400 font-bold">
@@ -771,10 +804,12 @@ export default function App() {
             catalog={catalog}
             currentChapterIndex={currentChapterIndex}
             playthroughCount={playthroughCount}
+            hasClearedNormal={hasClearedNormal}
             defeatedDemonIds={defeatedDemonIds}
             onStartBossBattle={handleStartBossBattle}
             onStartRandomBattle={handleStartRandomBattle}
             onStartHiddenKizukiBattle={handleStartHiddenKizukiBattle}
+            onStartSecondPlaythrough={handleStartSecondPlaythrough}
             onGoToInn={() => {
               setInnMessage(undefined);
               setScreen('inn');
@@ -804,6 +839,7 @@ export default function App() {
             party={party}
             catalog={catalog}
             initialMessage={innMessage}
+            initialTab={innActiveTab}
             onEncounter={registerEncounters}
             onBackToWorld={() => {
               setRosterVersion(v => v + 1);

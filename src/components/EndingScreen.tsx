@@ -199,12 +199,12 @@ export const EndingScreen: React.FC<EndingScreenProps> = ({
             </span>
           </div>
 
-          {/* Condition 1: Collect All Allies */}
+          {/* Condition 1: Collect All Allies (Hashira Only) */}
           <div className="space-y-1.5">
             <div className="flex justify-between items-center text-xs">
               <span className="flex items-center gap-1.5 font-bold text-emerald-300">
                 <Users className="w-3.5 h-3.5 text-emerald-400" />
-                <span>条件①: 全ての仲間集め</span>
+                <span>条件①: 全ての仲間集め（九柱全員集結！）</span>
               </span>
               <span className="font-mono font-bold text-emerald-200">
                 {alliesStatus.recruitedCount} / {alliesStatus.totalCount} 名
@@ -219,7 +219,7 @@ export const EndingScreen: React.FC<EndingScreenProps> = ({
             </div>
             {!alliesStatus.isComplete && (
               <p className="text-[11px] text-slate-400">
-                あと {alliesStatus.missingAllies.length} 名の仲間が集まっていません！原作物語の柱稽古・試練クイズや宿屋で仲間にできます。
+                あと {alliesStatus.missingAllies.length} 名の柱が集まっていません！「勧誘モード」の柱稽古（タイミング判定）で仲間にできます。
               </p>
             )}
           </div>

@@ -182,6 +182,18 @@ export const HIDDEN_TWELVE_KIZUKI_LIST: HiddenKizukiEncounter[] = [
   }
 ];
 
+export const HASHIRA_IDS = [
+  'char_giyu',
+  'char_shinobu',
+  'char_rengoku',
+  'char_tengen',
+  'char_muichiro',
+  'char_mitsuri',
+  'char_gyomei',
+  'char_sanemi',
+  'char_obanai'
+];
+
 export class TwelveKizukiService {
   /**
    * Check upper moon defeat status
@@ -213,11 +225,11 @@ export class TwelveKizukiService {
   }
 
   /**
-   * Get target list of all collectible allies (slayers, pillars, support, mentors, bladesmiths)
-   * Excludes enemies/demons.
+   * Get target list of all collectible allies.
+   * 「全仲間は柱だけだよ」というルールに基づき、クリア条件の対象は鬼殺隊の最高戦力【九柱】全員（9名）のみ。
    */
   public static getRecruitableAllies(catalog: Character[]): Character[] {
-    return catalog.filter(c => c.role !== 'demon');
+    return catalog.filter(c => HASHIRA_IDS.includes(c.id));
   }
 
   /**

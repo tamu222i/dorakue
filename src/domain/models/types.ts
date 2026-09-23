@@ -66,6 +66,7 @@ export interface Skill {
   effectType: 'damage' | 'heal' | 'buff_attack' | 'buff_defense' | 'cure';
   description: string;
   animation: 'slash_water' | 'slash_flame' | 'lightning' | 'beast_fangs' | 'butterfly' | 'mist_cut' | 'sun_burst' | 'blood_dark' | 'heal_herb';
+  isUltimate?: boolean; // 最強の呼吸 / 極限奥義のみに付与（カットイン発生フラグ）
 }
 
 export interface SpriteConfig {

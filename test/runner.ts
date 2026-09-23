@@ -90,11 +90,12 @@ async function runTests() {
   assert(party.activeMembers.length === 4, 'Then: Active party has 4 demon slayer members');
   assert(party.hasMember('冨岡義勇'), 'Then: Giyu Tomioka is successfully recruited');
 
-  // Scenario 3: 原作ストーリー全8章進行 (8 Canon Story Chapters)
-  console.log('Scenario: Authentic storyline from Final Selection to Muzan');
-  assert(STORY_CHAPTERS.length === 8, `Story has 8 authentic chapters (actual: ${STORY_CHAPTERS.length})`);
+  // Scenario 3: 原作ストーリー全8章進行＋最終隠し第9章 (9 Canon Story Chapters)
+  console.log('Scenario: Authentic storyline from Final Selection to Muzan and Demon King Tanjiro');
+  assert(STORY_CHAPTERS.length === 9, `Story has 9 authentic chapters including secret final chapter (actual: ${STORY_CHAPTERS.length})`);
   assert(STORY_CHAPTERS[0].title.includes('最終選別'), 'Chapter 1 is Final Selection');
   assert(STORY_CHAPTERS[7].bossName.includes('鬼舞辻無惨'), 'Chapter 8 Final Boss is Muzan Kibutsuji');
+  assert(STORY_CHAPTERS[8].bossName.includes('鬼化・竈門炭治郎'), 'Chapter 9 Secret Final Boss is Demon King Tanjiro');
 
   // Scenario 4: 図鑑の未登場キャラ隠蔽 (Hide unencountered characters in Zukan)
   console.log('Scenario: Unencountered characters are hidden in Zukan with silhouettes and ??? masking');
@@ -140,7 +141,7 @@ async function runTests() {
   console.log('Scenario: Story mode presents branching choices that recruit different comrades');
   // GIVEN: All story chapters have narrative choices
   const chaptersWithChoices = STORY_CHAPTERS.filter(ch => ch.choices && ch.choices.length > 0);
-  assert(chaptersWithChoices.length === 8, 'Given: All 8 story chapters have narrative recruitment choices');
+  assert(chaptersWithChoices.length === 9, 'Given: All 9 story chapters have narrative recruitment choices');
 
   // WHEN: Comparing recruits across choices in Chapter 1
   const ch1 = STORY_CHAPTERS[0];
@@ -218,10 +219,89 @@ async function runTests() {
   assert(muzanSkillDmg < muichiro.stats.maxHp * 0.55, `Then: Chapter 8 Muzan shockwave skill does not wipe out member (damage: ${muzanSkillDmg}, HP: ${muichiro.stats.maxHp})`);
 
   // プレイヤー側の攻撃がボスに通るか（数ターンで確実に撃破可能）
-  const tanjiroSun = catalog.find(c => c.name === '竈門炭治郎')!;
-  const sunSkill = tanjiroSun.skills.find(s => s.breathStyle === 'sun') || tanjiroSun.skills[0];
-  const playerDmg = calculateDamage(tanjiroSun, hantengu, sunSkill, false, true);
+  const muichiroLv = catalog.find(c => c.id === 'char_muichiro')!;
+  const mistSkill = muichiroLv.skills.find(s => s.breathStyle === 'mist') || muichiroLv.skills[0];
+  const playerDmg = calculateDamage(muichiroLv, hantengu, mistSkill, false, true);
   assert(playerDmg >= 80, `Then: Player breath skill deals substantial damage against Chapter 7 boss (${playerDmg} dmg vs ${hantengu.stats.maxHp} HP)`);
+
+  // Scenario 10: ユーザー要望「全仲間は柱だけ」「2周目は1周目クリアしないと闘えない」「曲名が絆の奇跡が表示されない」の検証
+  console.log('Scenario: User constraints verification (Hashira-only allies, 2nd playthrough unlock, Kizuna no Kiseki BGM)');
+  const { TwelveKizukiService, HASHIRA_IDS } = await import('../src/domain/services/TwelveKizukiService.ts');
+  const { TRACKS } = await import('../src/infrastructure/audio/RetroBGM.ts');
+
+  // 1. 全仲間は柱だけ (9名)
+  const recruitableAllies = TwelveKizukiService.getRecruitableAllies(catalog);
+  assert(recruitableAllies.length === 9, `Then: Recruitable allies for complete clear is strictly the 9 Hashira (actual: ${recruitableAllies.length})`);
+  assert(recruitableAllies.every(a => HASHIRA_IDS.includes(a.id)), 'Then: All recruitable clear allies belong to the canonical Hashira (九柱)');
+
+  // 2. 9柱集結で仲間条件達成
+  const mockPartyAllHashira = recruitableAllies.map(h => ({ ...h, level: 10 }));
+  const alliesCheck = TwelveKizukiService.checkAlliesRecruited(mockPartyAllHashira, catalog);
+  assert(alliesCheck.isComplete === true && alliesCheck.recruitedCount === 9, 'Then: Recruiting all 9 Hashira marks allies condition complete');
+
+  // 3. 絆ノ奇跡トラックの存在
+  assert(TRACKS.kizuna !== undefined, 'Then: Kizuna no Kiseki track is properly defined in RetroBGM');
+  assert(TRACKS.kizuna ? TRACKS.kizuna.title.includes('絆ノ奇跡') : false, `Then: Kizuna track has correct title (actual: ${TRACKS.kizuna?.title})`);
+
+  // Scenario 11: ユーザー要望「最初から呼吸は使えないよ。レベルが上がったら強力な呼吸が使えるように調整して。カットインは最強の呼吸だけだよ」の検証
+  console.log('Scenario: Level-gated breathing unlocks & cut-ins restricted strictly to strongest technique');
+  const { getSkillsForLevel, isUltimateSkill, MASTER_SKILLS } = await import('../src/domain/services/SkillProgressionService.ts');
+
+  // 1. 最初(Lv.1)は呼吸技が使えない（基本技のみ）
+  const tanjiroLv1 = { ...tanjiro!, level: 1 };
+  const lv1Skills = getSkillsForLevel(tanjiroLv1);
+  assert(lv1Skills.length >= 1, 'Then: Lv.1 Tanjiro has starter skills');
+  assert(
+    lv1Skills.every(s => s.breathStyle === 'none'),
+    'Then: Lv.1 Tanjiro has NO breathing techniques (all skills have breathStyle none - 最初から呼吸は使えない)'
+  );
+
+  // 善逸・伊之助もLv.1では呼吸を使えない
+  const zenitsuLv1 = { ...zenitsu, level: 1 };
+  assert(
+    getSkillsForLevel(zenitsuLv1).every(s => s.breathStyle === 'none'),
+    'Then: Lv.1 Zenitsu has NO thunder breathing techniques'
+  );
+
+  // 2. レベルが上がったら強力な呼吸が使えるように順次解禁
+  const tanjiroLv3 = { ...tanjiro!, level: 3 };
+  const lv3Skills = getSkillsForLevel(tanjiroLv3);
+  assert(
+    lv3Skills.some(s => s.id === 'sk_water_1' && s.breathStyle === 'water'),
+    'Then: Lv.3 Tanjiro unlocks Water Breathing Form 1 (水面斬り)'
+  );
+
+  const tanjiroLv18 = { ...tanjiro!, level: 18 };
+  const lv18Skills = getSkillsForLevel(tanjiroLv18);
+  assert(
+    lv18Skills.some(s => s.id === 'sk_water_10'),
+    'Then: Lv.18 Tanjiro unlocks advanced Water Breathing (生生流転)'
+  );
+
+  const tanjiroLv36 = { ...tanjiro!, level: 36 };
+  const lv36Skills = getSkillsForLevel(tanjiroLv36);
+  assert(
+    lv36Skills.some(s => s.id === 'sk_sun_dragon'),
+    'Then: Lv.36 Tanjiro unlocks ultimate Sun Breathing (日暈の龍 頭舞い)'
+  );
+
+  // 3. カットインは最強の呼吸だけ（初歩や通常呼吸技ではカットイン不発）
+  const basicSlash = MASTER_SKILLS.starter_slash;
+  const waterForm1 = MASTER_SKILLS.water_surface_slash;
+  const waterForm2 = MASTER_SKILLS.water_wheel;
+  const thunderForm1 = MASTER_SKILLS.thunder_clap;
+  const sunDragonUlt = MASTER_SKILLS.hinokami_sun_dragon;
+  const giyuUlt = MASTER_SKILLS.water_dead_calm;
+  const zenitsuUlt = MASTER_SKILLS.thunder_god;
+
+  const mockTanjiroAllSkills = { ...tanjiro!, level: 40, skills: lv36Skills };
+  assert(!isUltimateSkill(mockTanjiroAllSkills, basicSlash), 'Then: Basic slash DOES NOT trigger cut-in');
+  assert(!isUltimateSkill(mockTanjiroAllSkills, waterForm1), 'Then: Water Breathing Form 1 DOES NOT trigger cut-in');
+  assert(!isUltimateSkill(mockTanjiroAllSkills, waterForm2), 'Then: Water Breathing Form 2 DOES NOT trigger cut-in');
+  assert(!isUltimateSkill(mockTanjiroAllSkills, thunderForm1), 'Then: Thunder Clap Form 1 DOES NOT trigger cut-in');
+  assert(isUltimateSkill(mockTanjiroAllSkills, sunDragonUlt), 'Then: STRONGEST Sun Dragon DOES trigger cut-in (最強の呼吸だけカットイン)');
+  assert(isUltimateSkill(mockTanjiroAllSkills, giyuUlt), 'Then: Giyu Dead Calm (拾壱ノ型 凪) DOES trigger cut-in');
+  assert(isUltimateSkill(mockTanjiroAllSkills, zenitsuUlt), 'Then: Zenitsu Flaming Thunder God (漆ノ型 火雷神) DOES trigger cut-in');
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

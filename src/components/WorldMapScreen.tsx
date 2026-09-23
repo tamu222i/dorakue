@@ -13,17 +13,19 @@ import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { MapPin, Swords, Bed, BookOpen, ShieldAlert, Award, RotateCcw, Sparkles, Skull, CheckCircle2, Waves } from 'lucide-react';
+import { MapPin, Swords, Bed, BookOpen, ShieldAlert, Award, RotateCcw, Sparkles, Skull, CheckCircle2, Waves, UserPlus } from 'lucide-react';
 
 interface WorldMapScreenProps {
   party: PartyAggregate;
   catalog: Character[];
   currentChapterIndex: number;
   playthroughCount: number;
+  hasClearedNormal?: boolean;
   defeatedDemonIds: Set<string>;
   onStartBossBattle: (chapter: StoryChapter) => void;
   onStartRandomBattle: (enemy: Character, enemies?: Character[]) => void;
   onStartHiddenKizukiBattle: (encounter: HiddenKizukiEncounter) => void;
+  onStartSecondPlaythrough?: () => void;
   onGoToInn: () => void;
   onOpenZukan: () => void;
   onOpenStoryMode: () => void;
@@ -36,10 +38,12 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
   catalog,
   currentChapterIndex,
   playthroughCount,
+  hasClearedNormal = false,
   defeatedDemonIds,
   onStartBossBattle,
   onStartRandomBattle,
   onStartHiddenKizukiBattle,
+  onStartSecondPlaythrough,
   onGoToInn,
   onOpenZukan,
   onOpenStoryMode,
@@ -49,6 +53,10 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
   const [selectedChapterIdx, setSelectedChapterIdx] = useState<number>(currentChapterIndex);
   const [selectedTrainingTier, setSelectedTrainingTier] = useState<'stage1' | 'stage2' | 'current' | 'swamp'>('stage1');
   const chapter = STORY_CHAPTERS[selectedChapterIdx] || STORY_CHAPTERS[0];
+
+  // 2周目は1周目クリアしないと闘えない
+  const isSecondPlaythroughUnlocked = Boolean(hasClearedNormal);
+  const isSecondPlaythroughActive = isSecondPlaythroughUnlocked && playthroughCount >= 2;
 
   // Check hidden Kizuki for selected chapter
   const hiddenKizuki = TwelveKizukiService.getHiddenKizukiForChapter(chapter.chapterNumber);
@@ -110,7 +118,7 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-            {playthroughCount >= 2 && (
+            {isSecondPlaythroughActive && (
               <span className="px-2.5 py-1 bg-purple-950 text-purple-300 border border-purple-500 rounded text-xs font-bold flex items-center gap-1 shadow animate-pulse">
                 <Skull className="w-3.5 h-3.5 text-purple-400" />
                 <span>第{playthroughCount}周目（隠れ鬼出現中）</span>
@@ -133,10 +141,11 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 SoundEngine.playConfirm();
                 onOpenStoryMode();
               }}
-              className="px-3 py-2 bg-purple-700 hover:bg-purple-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-purple-400 shadow touch-manipulation"
+              className="px-3 py-2 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-cyan-400 shadow touch-manipulation"
+              title="各章の柱稽古やクイズ試練で仲間を勧誘する"
             >
-              <BookOpen className="w-3.5 h-3.5 text-amber-300" />
-              <span><FuriganaText text="原作[げんさく]ものがたり" /></span>
+              <UserPlus className="w-3.5 h-3.5 text-cyan-200" />
+              <span><FuriganaText text="勧誘[かんゆう]モード" /></span>
             </button>
 
             <button
@@ -166,7 +175,7 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
 
       {/* Main Chapter Progression Bar */}
       <DqFrame 
-        title={currentChapterIndex >= 8 ? "原作ストーリー討伐進行（全8章＋最終隠しステージ出現！）" : "原作ストーリー討伐進行（全8章）"} 
+        title={currentChapterIndex >= 8 ? "討伐モード進行（全8章＋最終隠しステージ出現！）" : "討伐モード進行（全8章の鬼討伐）"} 
         className="p-3"
       >
         <div className={`grid gap-1.5 text-center text-xs ${
@@ -264,10 +273,10 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                   SoundEngine.playConfirm();
                   onOpenStoryMode();
                 }}
-                className="py-2.5 px-3 rounded text-xs font-bold flex items-center justify-center gap-1.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white border border-purple-400 shadow-md touch-manipulation"
+                className="py-2.5 px-3 rounded text-xs font-bold flex items-center justify-center gap-1.5 bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white border border-cyan-400 shadow-md touch-manipulation"
               >
-                <BookOpen className="w-4 h-4 text-amber-300" />
-                <span><FuriganaText text="原作[げんさく]ものがたり（柱稽古[はしらげいこ]＆試練[しれん]で仲間[なかま]集[あつ]め）" /></span>
+                <UserPlus className="w-4 h-4 text-cyan-200" />
+                <span><FuriganaText text="勧誘[かんゆう]モード（柱稽古[はしらげいこ]＆試練[しれん]で仲間[なかま]集[あつ]め）" /></span>
               </button>
 
               <button
@@ -299,10 +308,10 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
               </button>
             </div>
 
-            {/* 2nd Playthrough Hidden Twelve Kizuki Encounter ("ストーリーで出て来ない12鬼月は2周目の各ステージに隠れているよ") */}
+            {/* 2nd Playthrough Hidden Twelve Kizuki Encounter ("2周目は1周目クリアしないと闘えない") */}
             {hiddenKizuki && (
               <div className={`rounded-lg p-3 border flex flex-col gap-2 shadow-md ${
-                playthroughCount >= 2
+                isSecondPlaythroughActive
                   ? isHiddenKizukiDefeated
                     ? 'bg-emerald-950/40 border-emerald-500/70'
                     : 'bg-purple-950/80 border-purple-500 ring-1 ring-purple-400/50 animate-pulse'
@@ -310,13 +319,13 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
               }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                    <Skull className={`w-4 h-4 ${playthroughCount >= 2 ? 'text-purple-400' : 'text-slate-500'}`} />
+                    <Skull className={`w-4 h-4 ${isSecondPlaythroughActive ? 'text-purple-400' : 'text-slate-500'}`} />
                     <span>
-                      <FuriganaText text={playthroughCount >= 2 ? "【2周[しゅう]目[め]限定[げんてい]・隠[かく]れ十二[じゅうに]鬼[き]月[づき]の気配[けはい]！】" : "【隠[かく]れ十二[じゅうに]鬼[き]月[づき]の伝説[でんせつ]】"} />
+                      <FuriganaText text={isSecondPlaythroughActive ? "【2周[しゅう]目[め]限定[げんてい]・隠[かく]れ十二[じゅうに]鬼[き]月[づき]の気配[けはい]！】" : "【2周[しゅう]目[め]限定[げんてい]・隠[かく]れ十二[じゅうに]鬼[き]月[づき]】"} />
                     </span>
                   </span>
 
-                  {playthroughCount >= 2 ? (
+                  {isSecondPlaythroughActive ? (
                     isHiddenKizukiDefeated ? (
                       <span className="text-[10px] bg-emerald-700 text-white px-2 py-0.5 rounded font-bold flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
@@ -328,8 +337,8 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                       </span>
                     )
                   ) : (
-                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">
-                      2周目解放
+                    <span className="text-[10px] bg-slate-800 text-amber-300 border border-slate-700 px-2 py-0.5 rounded font-bold">
+                      {isSecondPlaythroughUnlocked ? '🎉 1周目クリア済（2周目へ）' : '🔒 1周目クリアで解放'}
                     </span>
                   )}
                 </div>
@@ -349,7 +358,7 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                   </div>
                 </div>
 
-                {playthroughCount >= 2 ? (
+                {isSecondPlaythroughActive ? (
                   <button
                     onClick={() => {
                       SoundEngine.playConfirm();
@@ -364,9 +373,20 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                         : `隠れ十二鬼月: ${hiddenKizuki.bossName} に挑む！`}
                     </span>
                   </button>
+                ) : isSecondPlaythroughUnlocked ? (
+                  <button
+                    onClick={() => {
+                      SoundEngine.playConfirm();
+                      if (onStartSecondPlaythrough) onStartSecondPlaythrough();
+                    }}
+                    className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white rounded text-xs font-bold border border-yellow-300 flex items-center justify-center gap-2 shadow-md touch-manipulation"
+                  >
+                    <Sparkles className="w-4 h-4 text-yellow-200" />
+                    <span>第2周目を開始して隠れ十二鬼月に挑む！</span>
+                  </button>
                 ) : (
-                  <div className="text-[10px] text-slate-400 text-center py-1 bg-slate-900/50 rounded border border-slate-800">
-                    ※ 最終ステージをクリアしていったんクリア後、2周目を開始するとここで戦えます！
+                  <div className="text-[10px] text-rose-300/90 text-center py-2 px-2 bg-slate-900/80 rounded border border-rose-900/50">
+                    ⚠️ 2周目は1周目をクリア（第9章クリア）しないと闘えません！まずは本編第9章クリアを目指しましょう。
                   </div>
                 )}
               </div>

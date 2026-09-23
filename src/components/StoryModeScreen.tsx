@@ -74,13 +74,13 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
           <div>
             <h2 className="text-base sm:text-lg font-bold text-amber-300 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-amber-400" />
+              <UserPlus className="w-5 h-5 text-cyan-400" />
               <span>
-                <FuriganaText text="原作[げんさく]ものがたり（柱[はしら]は柱稽古[はしらげいこ]・隊士[たいし]は3問[もん]クイズで仲間[なかま]入り！）" />
+                <FuriganaText text="勧誘[かんゆう]モード（柱[はしら]は柱稽古[はしらげいこ]・隊士[たいし]は3問[もん]クイズで仲間[なかま]入り！）" />
               </span>
             </h2>
             <p className="text-xs text-slate-300 mt-1">
-              <FuriganaText text="柱[はしら]はタイミングミニゲーム、一般[いっぱん]隊士[たいし]は3問[もん]クイズの試[し]練[れん]を突破[とっぱ]して心[こころ]を通[つう]じ合[あ]わせよう！" />
+              <FuriganaText text="各章[かくしょう]の仲間[なかま]を勧誘[かんゆう]！柱[はしら]は柱稽古[はしらげいこ]（タイミング判定[はんてい]）、隊士[たいし]は3問[もん]クイズの試[し]練[れん]を突破[とっぱ]しよう！" />
             </p>
           </div>
 
@@ -89,10 +89,11 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
               SoundEngine.playConfirm();
               onBack();
             }}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded border border-slate-600 flex items-center gap-1.5 touch-manipulation"
+            className="px-4 py-2 bg-red-950/80 hover:bg-red-900 text-red-200 text-xs font-bold rounded border border-red-600 flex items-center gap-1.5 touch-manipulation shadow"
+            title="討伐モード（章マップ）へ戻る"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span><FuriganaText text="戻[もど]る" /></span>
+            <Swords className="w-4 h-4 text-red-400" />
+            <span><FuriganaText text="討伐[とうばつ]モードへ戻[もど]る" /></span>
           </button>
         </div>
 
@@ -356,9 +357,9 @@ export const StoryModeScreen: React.FC<StoryModeScreenProps> = ({
               <ShieldAlert className="w-5 h-5" />
               <span>
                 {chapter.chapterNumber === 8 ? (
-                  <FuriganaText text="最終[さいしゅう]決戦[けっせん]！鬼舞辻[きぶつじ]無惨[むざん]に挑[いど]む" />
+                  <FuriganaText text="討伐[とうばつ]: 最終[さいしゅう]決戦[けっせん]！鬼舞辻[きぶつじ]無惨[むざん]に挑[いど]む" />
                 ) : (
-                  <FuriganaText text={`第[だい]${chapter.chapterNumber}章[しょう] 決戦[けっせん]に挑[いど]む！`} />
+                  <FuriganaText text={`討伐[とうばつ]: 第[だい]${chapter.chapterNumber}章[しょう] 決戦[けっせん]に挑[いど]む！`} />
                 )}
               </span>
             </button>

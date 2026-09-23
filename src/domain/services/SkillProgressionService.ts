@@ -10,13 +10,61 @@ import { Character, Skill, BreathStyle } from '../models/types.ts';
  * from weak/basic starter techniques to ultimate legendary secret arts!
  */
 export const MASTER_SKILLS: Record<string, Skill> = {
-  // === BASIC STARTER TECHNIQUES (ショボイ呼吸・基礎技) ===
+  // === BASIC STARTER TECHNIQUES (呼吸習得前の初歩技・無呼吸) ===
+  starter_slash: {
+    id: 'sk_starter_slash',
+    name: '基礎・日輪刀の連撃',
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
+    power: 70,
+    target: 'single',
+    effectType: 'damage',
+    description: '呼吸法を会得する前の素朴な刀の打ち込み。力強い太刀筋で斬りつける。',
+    animation: 'slash_water'
+  },
+  starter_thrust: {
+    id: 'sk_starter_thrust',
+    name: '基礎・踏み込み突き',
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
+    power: 60,
+    target: 'single',
+    effectType: 'damage',
+    description: '足腰を低く沈めて体重を乗せて放つ素朴な突き。呼吸力を使わず繰り出せる。',
+    animation: 'slash_water'
+  },
+  starter_unarmed: {
+    id: 'sk_starter_unarmed',
+    name: '基礎・徒手格闘/体当たり',
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
+    power: 55,
+    target: 'single',
+    effectType: 'damage',
+    description: '刀を使わず放つ素手の拳撃や体当たり。敵の体勢を崩す。',
+    animation: 'beast_fangs'
+  },
+  starter_aid: {
+    id: 'sk_starter_aid',
+    name: '救急の手当',
+    katagaki: '手当',
+    breathStyle: 'none',
+    bpCost: 2,
+    power: 60,
+    target: 'ally_single',
+    effectType: 'heal',
+    description: '清潔な布や薬草を使って傷口を手当し、HPをわずかに回復する。',
+    animation: 'heal_herb'
+  },
   weak_water_poke: {
     id: 'sk_weak_water',
-    name: '基礎・水流の突き',
-    katagaki: '基礎技',
-    breathStyle: 'water',
-    bpCost: 2,
+    name: '基礎・素朴な突き',
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
     power: 65,
     target: 'single',
     effectType: 'damage',
@@ -25,22 +73,22 @@ export const MASTER_SKILLS: Record<string, Skill> = {
   },
   weak_flame_poke: {
     id: 'sk_weak_flame',
-    name: '基礎・火打突',
-    katagaki: '基礎技',
-    breathStyle: 'flame',
-    bpCost: 2,
+    name: '基礎・打ち込み',
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
     power: 65,
     target: 'single',
     effectType: 'damage',
-    description: '刃先にわずかに熱を帯びさせた牽制の一撃。',
+    description: '初歩の太刀筋で放つ牽制の一撃。',
     animation: 'slash_flame'
   },
   weak_thunder_poke: {
     id: 'sk_weak_thunder',
     name: '基礎・怯えの一突き',
-    katagaki: '基礎技',
-    breathStyle: 'thunder',
-    bpCost: 2,
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
     power: 65,
     target: 'single',
     effectType: 'damage',
@@ -50,9 +98,9 @@ export const MASTER_SKILLS: Record<string, Skill> = {
   weak_beast_scratch: {
     id: 'sk_weak_beast',
     name: '基礎・猪突引っかき',
-    katagaki: '基礎技',
-    breathStyle: 'beast',
-    bpCost: 2,
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
     power: 68,
     target: 'single',
     effectType: 'damage',
@@ -62,9 +110,9 @@ export const MASTER_SKILLS: Record<string, Skill> = {
   weak_sun_slash: {
     id: 'sk_weak_sun',
     name: '基礎・炭焼きの太刀',
-    katagaki: '基礎技',
-    breathStyle: 'sun',
-    bpCost: 2,
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
     power: 70,
     target: 'single',
     effectType: 'damage',
@@ -74,9 +122,9 @@ export const MASTER_SKILLS: Record<string, Skill> = {
   weak_demon_scratch: {
     id: 'sk_weak_demon',
     name: '基礎・鬼の爪撃',
-    katagaki: '基礎技',
-    breathStyle: 'blood',
-    bpCost: 2,
+    katagaki: '基本技',
+    breathStyle: 'none',
+    bpCost: 0,
     power: 65,
     target: 'single',
     effectType: 'damage',
@@ -86,9 +134,9 @@ export const MASTER_SKILLS: Record<string, Skill> = {
   weak_generic_slash: {
     id: 'sk_weak_generic',
     name: '基礎・がむしゃら斬り',
-    katagaki: '基礎技',
+    katagaki: '基本技',
     breathStyle: 'none',
-    bpCost: 2,
+    bpCost: 0,
     power: 60,
     target: 'single',
     effectType: 'damage',
@@ -193,7 +241,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '間合いに入った攻撃を静寂の水面のように無へと帰す、冨岡義勇の独自奥義。',
-    animation: 'slash_water'
+    animation: 'slash_water',
+    isUltimate: true
   },
 
   // === ヒノカミ神楽 / 日の呼吸 ===
@@ -231,7 +280,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '太陽を纏う炎龍のように飛び回り、幾重もの神速の刃で敵陣を灰燼に帰す究極奥義。',
-    animation: 'sun_burst'
+    animation: 'sun_burst',
+    isUltimate: true
   },
   yoriichi_thirteenth: {
     id: 'sk_sun_yoriichi',
@@ -243,7 +293,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '十二の型を円環のように途切れなく繋ぎ続ける、継国縁壱の到達した神の領域。',
-    animation: 'sun_burst'
+    animation: 'sun_burst',
+    isUltimate: true
   },
 
   // === 雷の呼吸 ===
@@ -293,7 +344,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'single',
     effectType: 'damage',
     description: '善逸が生み出した炎を纏う黄金の龍のような超神速の一撃！',
-    animation: 'lightning'
+    animation: 'lightning',
+    isUltimate: true
   },
 
   // === 獣の呼吸 ===
@@ -343,7 +395,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '野性を極限まで解き放ち、猪突猛進に暴れまわる伊之助の怒涛の連撃。',
-    animation: 'beast_fangs'
+    animation: 'beast_fangs',
+    isUltimate: true
   },
 
   // === 炎の呼吸 ===
@@ -393,7 +446,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '心を燃やし大地を抉る轟音の突進！炎柱が誇る最強の奥義。',
-    animation: 'slash_flame'
+    animation: 'slash_flame',
+    isUltimate: true
   },
 
   // === 蟲の呼吸 ===
@@ -431,7 +485,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'single',
     effectType: 'damage',
     description: '百足のようにうねりながら全方向から死角を突き、致死量の毒を撃ち込む奥義。',
-    animation: 'butterfly'
+    animation: 'butterfly',
+    isUltimate: true
   },
 
   // === 音の呼吸 ===
@@ -457,7 +512,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '炸裂玉と双刀を爆音とともに超高速回転させ、譜面通りに周囲を一掃するド派手な奥義。',
-    animation: 'lightning'
+    animation: 'lightning',
+    isUltimate: true
   },
 
   // === 霞の呼吸 ===
@@ -495,7 +551,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'single',
     effectType: 'damage',
     description: '霞の揺らぎのように緩急をつけ、敵の視界から完全に消え去り首を断つ無一郎の独自奥義。',
-    animation: 'mist_cut'
+    animation: 'mist_cut',
+    isUltimate: true
   },
 
   // === 恋の呼吸 ===
@@ -533,7 +590,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '宙を回転しながら猫のように身軽にしなやかな刃の嵐を巻き起こす奥義。',
-    animation: 'beast_fangs'
+    animation: 'beast_fangs',
+    isUltimate: true
   },
 
   // === 岩の呼吸 ===
@@ -559,7 +617,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '空中から鉄球と斧を猛烈な勢いで乱れ撃ち、大地ごと敵を粉砕する岩柱の奥義。',
-    animation: 'sun_burst'
+    animation: 'sun_burst',
+    isUltimate: true
   },
 
   // === 風の呼吸 ===
@@ -585,7 +644,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '宙を舞いながら無数の暴風の斬撃を叩きつけ、跡形もなく切り刻む奥義。',
-    animation: 'mist_cut'
+    animation: 'mist_cut',
+    isUltimate: true
   },
 
   // === 蛇の呼吸 ===
@@ -611,7 +671,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '大蛇の如く蛇行しながらすり抜け、全方向から敵陣の首を刎ねる奥義。',
-    animation: 'slash_water'
+    animation: 'slash_water',
+    isUltimate: true
   },
 
   // === 花の呼吸 ===
@@ -637,7 +698,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'single',
     effectType: 'damage',
     description: '動体視力を限界まで引き上げ、全てが止まって見える世界の中で放つ神速の一撃。',
-    animation: 'butterfly'
+    animation: 'butterfly',
+    isUltimate: true
   },
 
   // === 血鬼術 ===
@@ -663,7 +725,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '角を生やし覚醒した禰豆子が放つ、鬼の再生力を完全に焼き尽くす灼熱の火炎嵐。',
-    animation: 'sun_burst'
+    animation: 'sun_burst',
+    isUltimate: true
   },
   blood_arrow: {
     id: 'sk_b_arrow',
@@ -699,7 +762,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'single',
     effectType: 'damage',
     description: '闘気を感知し、至高の武をもって放つ即死級の拳撃突進。',
-    animation: 'sun_burst'
+    animation: 'sun_burst',
+    isUltimate: true
   },
   blood_moon_slashes: {
     id: 'sk_b_moon',
@@ -711,7 +775,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '三日月の無数の刃を雨のように降らせて敵全体を切り刻む。',
-    animation: 'mist_cut'
+    animation: 'mist_cut',
+    isUltimate: true
   },
   blood_muzan_shockwave: {
     id: 'sk_b_muzan',
@@ -723,7 +788,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'all',
     effectType: 'damage',
     description: '背中と両腕から放つ衝撃波で敵全体を粉砕する。',
-    animation: 'blood_dark'
+    animation: 'blood_dark',
+    isUltimate: true
   },
   generic_hero_ultimate: {
     id: 'sk_generic_ultimate',
@@ -735,7 +801,8 @@ export const MASTER_SKILLS: Record<string, Skill> = {
     target: 'single',
     effectType: 'damage',
     description: '仲間を守るため、己の命の炎を燃やして放つ渾身の特大連撃。',
-    animation: 'sun_burst'
+    animation: 'sun_burst',
+    isUltimate: true
   }
 };
 
@@ -752,102 +819,116 @@ export interface SkillUnlock {
  */
 export const CHARACTER_SKILL_TREES: Record<string, SkillUnlock[]> = {
   char_tanjiro: [
-    { level: 1, skill: MASTER_SKILLS.weak_sun_slash },
-    { level: 1, skill: MASTER_SKILLS.water_surface_slash },
-    { level: 4, skill: MASTER_SKILLS.water_wheel },
-    { level: 9, skill: MASTER_SKILLS.water_striking_tide },
-    { level: 14, skill: MASTER_SKILLS.water_flow },
-    { level: 20, skill: MASTER_SKILLS.hinokami_enbu },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 3, skill: MASTER_SKILLS.water_surface_slash },
+    { level: 7, skill: MASTER_SKILLS.water_wheel },
+    { level: 12, skill: MASTER_SKILLS.water_striking_tide },
+    { level: 18, skill: MASTER_SKILLS.water_flow },
+    { level: 22, skill: MASTER_SKILLS.hinokami_enbu },
     { level: 28, skill: MASTER_SKILLS.hinokami_clear_sky },
     { level: 36, skill: MASTER_SKILLS.hinokami_sun_dragon }
   ],
   char_zenitsu: [
-    { level: 1, skill: MASTER_SKILLS.weak_thunder_poke },
-    { level: 2, skill: MASTER_SKILLS.thunder_clap },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 1, skill: MASTER_SKILLS.starter_unarmed },
+    { level: 3, skill: MASTER_SKILLS.thunder_clap },
     { level: 8, skill: MASTER_SKILLS.thunder_clap_sixfold },
     { level: 18, skill: MASTER_SKILLS.thunder_clap_godspeed },
     { level: 28, skill: MASTER_SKILLS.thunder_god }
   ],
   char_inosuke: [
-    { level: 1, skill: MASTER_SKILLS.weak_beast_scratch },
-    { level: 2, skill: MASTER_SKILLS.beast_pierce },
-    { level: 6, skill: MASTER_SKILLS.beast_fangs },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_unarmed },
+    { level: 3, skill: MASTER_SKILLS.beast_pierce },
+    { level: 7, skill: MASTER_SKILLS.beast_fangs },
     { level: 14, skill: MASTER_SKILLS.beast_devour },
     { level: 26, skill: MASTER_SKILLS.beast_rampage }
   ],
   char_nezuko: [
     { level: 1, skill: MASTER_SKILLS.weak_demon_scratch },
-    { level: 1, skill: MASTER_SKILLS.heal_herb },
-    { level: 5, skill: MASTER_SKILLS.blood_burst },
+    { level: 1, skill: MASTER_SKILLS.starter_aid },
+    { level: 4, skill: MASTER_SKILLS.blood_burst },
     { level: 15, skill: MASTER_SKILLS.heal_herb_advanced },
     { level: 26, skill: MASTER_SKILLS.blood_burst_ultimate }
   ],
   char_giyu: [
-    { level: 1, skill: MASTER_SKILLS.weak_water_poke },
-    { level: 1, skill: MASTER_SKILLS.water_surface_slash },
-    { level: 5, skill: MASTER_SKILLS.water_wheel },
-    { level: 12, skill: MASTER_SKILLS.water_striking_tide },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 4, skill: MASTER_SKILLS.water_surface_slash },
+    { level: 8, skill: MASTER_SKILLS.water_wheel },
+    { level: 13, skill: MASTER_SKILLS.water_striking_tide },
     { level: 18, skill: MASTER_SKILLS.water_flow },
     { level: 25, skill: MASTER_SKILLS.water_dead_calm }
   ],
   char_shinobu: [
-    { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-    { level: 1, skill: MASTER_SKILLS.heal_herb },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 1, skill: MASTER_SKILLS.starter_aid },
     { level: 4, skill: MASTER_SKILLS.insect_bee },
     { level: 12, skill: MASTER_SKILLS.insect_dance },
     { level: 24, skill: MASTER_SKILLS.insect_centipede }
   ],
   char_rengoku: [
-    { level: 1, skill: MASTER_SKILLS.weak_flame_poke },
-    { level: 1, skill: MASTER_SKILLS.flame_shiranui },
-    { level: 6, skill: MASTER_SKILLS.flame_rising },
-    { level: 14, skill: MASTER_SKILLS.flame_tiger },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 4, skill: MASTER_SKILLS.flame_shiranui },
+    { level: 8, skill: MASTER_SKILLS.flame_rising },
+    { level: 15, skill: MASTER_SKILLS.flame_tiger },
     { level: 24, skill: MASTER_SKILLS.flame_rengoku }
   ],
   char_tengen: [
-    { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-    { level: 1, skill: MASTER_SKILLS.sound_roar },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_unarmed },
+    { level: 4, skill: MASTER_SKILLS.sound_roar },
     { level: 12, skill: MASTER_SKILLS.heal_herb },
     { level: 24, skill: MASTER_SKILLS.sound_symphony }
   ],
   char_muichiro: [
-    { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-    { level: 1, skill: MASTER_SKILLS.mist_flow },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 4, skill: MASTER_SKILLS.mist_flow },
     { level: 10, skill: MASTER_SKILLS.mist_sea },
     { level: 24, skill: MASTER_SKILLS.mist_seventh }
   ],
   char_mitsuri: [
-    { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-    { level: 1, skill: MASTER_SKILLS.love_shiver },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_unarmed },
+    { level: 4, skill: MASTER_SKILLS.love_shiver },
     { level: 10, skill: MASTER_SKILLS.love_claws },
     { level: 24, skill: MASTER_SKILLS.love_cat_wind }
   ],
   char_gyomei: [
-    { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-    { level: 1, skill: MASTER_SKILLS.stone_double },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_unarmed },
+    { level: 4, skill: MASTER_SKILLS.stone_double },
     { level: 12, skill: MASTER_SKILLS.heal_herb },
     { level: 25, skill: MASTER_SKILLS.stone_ultimate }
   ],
   char_sanemi: [
-    { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-    { level: 1, skill: MASTER_SKILLS.wind_dust },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 4, skill: MASTER_SKILLS.wind_dust },
     { level: 12, skill: MASTER_SKILLS.heal_herb },
     { level: 25, skill: MASTER_SKILLS.wind_tengu }
   ],
   char_obanai: [
-    { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-    { level: 1, skill: MASTER_SKILLS.serpent_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 4, skill: MASTER_SKILLS.serpent_slash },
     { level: 12, skill: MASTER_SKILLS.heal_herb },
     { level: 25, skill: MASTER_SKILLS.serpent_long }
   ],
   char_kanao: [
-    { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-    { level: 1, skill: MASTER_SKILLS.flower_plum },
-    { level: 8, skill: MASTER_SKILLS.heal_herb },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_aid },
+    { level: 4, skill: MASTER_SKILLS.flower_plum },
+    { level: 10, skill: MASTER_SKILLS.heal_herb },
     { level: 24, skill: MASTER_SKILLS.flower_final }
   ],
   char_yoriichi: [
-    { level: 1, skill: MASTER_SKILLS.hinokami_enbu },
+    { level: 1, skill: MASTER_SKILLS.starter_slash },
+    { level: 1, skill: MASTER_SKILLS.starter_thrust },
+    { level: 4, skill: MASTER_SKILLS.hinokami_enbu },
     { level: 10, skill: MASTER_SKILLS.hinokami_clear_sky },
     { level: 20, skill: MASTER_SKILLS.hinokami_sun_dragon },
     { level: 30, skill: MASTER_SKILLS.yoriichi_thirteenth }
@@ -867,104 +948,106 @@ export function getGenericSkillTree(style: BreathStyle, role: string): SkillUnlo
     ];
   }
 
+  // All slayers start with non-breathing apprentice basic swordsmanship at Lv.1
+  // Breathing unlocks from Lv.4+, with the ultimate secret art at Lv.24-26
   switch (style) {
     case 'water':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_water_poke },
-        { level: 3, skill: MASTER_SKILLS.water_surface_slash },
-        { level: 8, skill: MASTER_SKILLS.water_wheel },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.water_surface_slash },
+        { level: 9, skill: MASTER_SKILLS.water_wheel },
         { level: 15, skill: MASTER_SKILLS.water_striking_tide },
         { level: 25, skill: MASTER_SKILLS.water_dead_calm }
       ];
     case 'flame':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_flame_poke },
-        { level: 3, skill: MASTER_SKILLS.flame_shiranui },
-        { level: 8, skill: MASTER_SKILLS.flame_rising },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.flame_shiranui },
+        { level: 9, skill: MASTER_SKILLS.flame_rising },
         { level: 15, skill: MASTER_SKILLS.flame_tiger },
         { level: 25, skill: MASTER_SKILLS.flame_rengoku }
       ];
     case 'thunder':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_thunder_poke },
-        { level: 3, skill: MASTER_SKILLS.thunder_clap },
+        { level: 1, skill: MASTER_SKILLS.starter_thrust },
+        { level: 4, skill: MASTER_SKILLS.thunder_clap },
         { level: 9, skill: MASTER_SKILLS.thunder_clap_sixfold },
         { level: 18, skill: MASTER_SKILLS.thunder_clap_godspeed },
         { level: 26, skill: MASTER_SKILLS.thunder_god }
       ];
     case 'beast':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_beast_scratch },
-        { level: 3, skill: MASTER_SKILLS.beast_pierce },
-        { level: 8, skill: MASTER_SKILLS.beast_fangs },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.beast_pierce },
+        { level: 9, skill: MASTER_SKILLS.beast_fangs },
         { level: 15, skill: MASTER_SKILLS.beast_devour },
         { level: 25, skill: MASTER_SKILLS.beast_rampage }
       ];
     case 'wind':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-        { level: 3, skill: MASTER_SKILLS.wind_dust },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.wind_dust },
         { level: 14, skill: MASTER_SKILLS.heal_herb },
         { level: 25, skill: MASTER_SKILLS.wind_tengu }
       ];
     case 'insect':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-        { level: 3, skill: MASTER_SKILLS.insect_bee },
-        { level: 10, skill: MASTER_SKILLS.insect_dance },
+        { level: 1, skill: MASTER_SKILLS.starter_thrust },
+        { level: 4, skill: MASTER_SKILLS.insect_bee },
+        { level: 11, skill: MASTER_SKILLS.insect_dance },
         { level: 24, skill: MASTER_SKILLS.insect_centipede }
       ];
     case 'mist':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-        { level: 3, skill: MASTER_SKILLS.mist_flow },
-        { level: 10, skill: MASTER_SKILLS.mist_sea },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.mist_flow },
+        { level: 11, skill: MASTER_SKILLS.mist_sea },
         { level: 24, skill: MASTER_SKILLS.mist_seventh }
       ];
     case 'love':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-        { level: 3, skill: MASTER_SKILLS.love_shiver },
-        { level: 10, skill: MASTER_SKILLS.love_claws },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.love_shiver },
+        { level: 11, skill: MASTER_SKILLS.love_claws },
         { level: 24, skill: MASTER_SKILLS.love_cat_wind }
       ];
     case 'stone':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-        { level: 3, skill: MASTER_SKILLS.stone_double },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.stone_double },
         { level: 12, skill: MASTER_SKILLS.heal_herb },
         { level: 25, skill: MASTER_SKILLS.stone_ultimate }
       ];
     case 'serpent':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-        { level: 3, skill: MASTER_SKILLS.serpent_slash },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.serpent_slash },
         { level: 12, skill: MASTER_SKILLS.heal_herb },
         { level: 25, skill: MASTER_SKILLS.serpent_long }
       ];
     case 'flower':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
-        { level: 3, skill: MASTER_SKILLS.flower_plum },
-        { level: 10, skill: MASTER_SKILLS.heal_herb },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
+        { level: 4, skill: MASTER_SKILLS.flower_plum },
+        { level: 11, skill: MASTER_SKILLS.heal_herb },
         { level: 24, skill: MASTER_SKILLS.flower_final }
       ];
     case 'sun':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_sun_slash },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
         { level: 4, skill: MASTER_SKILLS.hinokami_enbu },
         { level: 14, skill: MASTER_SKILLS.hinokami_clear_sky },
         { level: 26, skill: MASTER_SKILLS.hinokami_sun_dragon }
       ];
     case 'moon':
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
         { level: 10, skill: MASTER_SKILLS.blood_spider_threads },
         { level: 25, skill: MASTER_SKILLS.blood_moon_slashes }
       ];
     default:
       return [
-        { level: 1, skill: MASTER_SKILLS.weak_generic_slash },
+        { level: 1, skill: MASTER_SKILLS.starter_slash },
         { level: 4, skill: MASTER_SKILLS.water_surface_slash },
         { level: 12, skill: MASTER_SKILLS.heal_herb },
         { level: 24, skill: MASTER_SKILLS.generic_hero_ultimate }
@@ -981,7 +1064,7 @@ export function getSkillsForLevel(char: Character): Skill[] {
 
   // Fallback: If for some reason empty, guarantee at least the starter skill
   if (eligible.length === 0) {
-    eligible.push(MASTER_SKILLS.weak_generic_slash);
+    eligible.push(MASTER_SKILLS.starter_slash || MASTER_SKILLS.weak_generic_slash);
   }
 
   // Deduplicate by id
@@ -1011,21 +1094,57 @@ export function checkNewLearnedSkills(char: Character, oldLevel: number, newLeve
 }
 
 /**
- * Determines if a skill is the character's most powerful / ultimate breathing technique!
+ * Registered IDs of the true STRONGEST ultimate secret arts (最強の呼吸)
+ */
+export const STRONGEST_ULTIMATE_SKILL_IDS = new Set<string>([
+  'sk_sun_dragon',
+  'sk_sun_yoriichi',
+  'sk_thunder_7',
+  'sk_beast_rampage',
+  'sk_water_11',
+  'sk_flame_9',
+  'sk_sound_5',
+  'sk_mist_7',
+  'sk_love_6',
+  'sk_stone_5',
+  'sk_wind_7',
+  'sk_serpent_5',
+  'sk_flower_final',
+  'sk_insect_centipede',
+  'sk_blood_nezuko_ult',
+  'sk_generic_ultimate',
+  'sk_b_compass',
+  'sk_b_moon',
+  'sk_b_muzan'
+]);
+
+/**
+ * Determines if a skill is the character's TRUE STRONGEST breathing technique!
+ * カットイン演出は最強の呼吸・極限奥義のみ発動（初歩や中級の呼吸技では発動しない）
  */
 export function isUltimateSkill(char: Character, skill: Skill): boolean {
   if (!skill) return false;
   // Non-damaging skills (heals, etc.) are never ultimate cuts
   if (skill.effectType === 'heal') return false;
+  // Basic non-breathing attacks never trigger cut-in
+  if (skill.breathStyle === 'none' && skill.id !== 'sk_generic_ultimate') return false;
 
-  // Check against all damage skills in the character's arsenal
-  const damageSkills = char.skills.filter(s => s.effectType === 'damage');
-  if (damageSkills.length === 0) return false;
+  // Explicit ultimate flag
+  if (skill.isUltimate) return true;
 
-  const maxPower = Math.max(...damageSkills.map(s => s.power));
+  // Registered strongest ultimate secret art IDs
+  if (STRONGEST_ULTIMATE_SKILL_IDS.has(skill.id)) return true;
 
-  // Must be the highest power skill, and have substantial power (>= 180, or if highest and power >= 135)
-  return skill.power === maxPower && skill.power >= 135;
+  // Katagaki check with high power threshold (>= 350)
+  if (skill.katagaki && (
+    skill.katagaki.includes('奥義') ||
+    skill.katagaki.includes('神境') ||
+    skill.katagaki.includes('始祖奥義')
+  ) && skill.power >= 350) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

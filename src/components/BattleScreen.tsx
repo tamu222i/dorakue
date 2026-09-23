@@ -11,10 +11,11 @@ import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { isUltimateSkill } from '../domain/services/SkillProgressionService.ts';
 import { EnemyGroupService } from '../domain/services/EnemyGroupService.ts';
+import { AutoItemService } from '../domain/services/AutoItemService.ts';
 import { UltimateCutIn } from './UltimateCutIn.tsx';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { Swords, Wind, Sparkles, Package, LogOut, FastForward, Play, RefreshCw, Flame, Target } from 'lucide-react';
+import { Swords, Wind, Sparkles, Package, LogOut, FastForward, Play, RefreshCw, Flame, Target, Zap } from 'lucide-react';
 
 interface BattleScreenProps {
   party: PartyAggregate;
@@ -80,8 +81,34 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [partyDamageNumber, setPartyDamageNumber] = useState<{ value: number; isHeal?: boolean } | null>(null);
   const [battleSpeed, setBattleSpeed] = useState<1 | 2>(1);
   const [isAutoBattle, setIsAutoBattle] = useState<boolean>(false);
+  const [roundTimeline, setRoundTimeline] = useState<{ id: string; name: string; isPlayer: boolean; speed: number; initiative: number }[]>([]);
+  const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const [activeCutIn, setActiveCutIn] = useState<{ character: Character; skill: Skill } | null>(null);
   const cutInResolverRef = useRef<(() => void) | null>(null);
+
+  // Predicted speed rankings for living combatants
+  const speedRankings = useMemo(() => {
+    const passive = AutoItemService.getPassiveStatBonuses(party.inventory);
+    const combatants = [
+      ...party.activeMembers
+        .filter(m => m.stats.hp > 0)
+        .map(m => ({
+          id: `player_${m.id}`,
+          name: m.name,
+          isPlayer: true,
+          speed: m.stats.speed + passive.bonusSpd
+        })),
+      ...enemies
+        .filter(e => e.stats.hp > 0)
+        .map((e, idx) => ({
+          id: `enemy_${e.id}_${idx}`,
+          name: e.name,
+          isPlayer: false,
+          speed: e.stats.speed
+        }))
+    ];
+    return combatants.sort((a, b) => b.speed - a.speed);
+  }, [party.activeMembers, party.inventory, enemies]);
 
   const triggerCutIn = (character: Character, skill: Skill): Promise<void> => {
     return new Promise<void>((resolve) => {
@@ -140,11 +167,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     return list.every(e => e.stats.hp <= 0);
   };
 
-  // Turn execution
+  // Turn execution: Speed-based interleaved actions & Auto-Item Application
   const executeRound = async (actions: QueuedAction[]) => {
     setIsProcessingTurn(true);
 
     const currentEnemies = enemies.map(e => ({ ...e, stats: { ...e.stats } }));
+    const passive = AutoItemService.getPassiveStatBonuses(party.inventory);
 
     // お助けサポート（藤の花の加護＆全集中の力）
     if (isEasyAssist) {
@@ -165,110 +193,78 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       }
     }
 
-    // 1. Process player actions in speed order
+    // Build unified combatants queue sorted by speed with initiative roll!
+    interface RoundParticipant {
+      id: string;
+      name: string;
+      isPlayer: boolean;
+      speed: number;
+      initiative: number;
+      playerAction?: QueuedAction;
+      enemyIndex?: number;
+    }
+
+    const participants: RoundParticipant[] = [];
+
+    // Player combatants
     for (const action of actions) {
-      const actor = action.member;
-      if (actor.stats.hp <= 0) continue; // collapsed
-      if (areAllEnemiesDefeated(currentEnemies)) break; // enemies already wiped out
+      if (action.member.stats.hp <= 0) continue;
+      const effectiveSpeed = action.member.stats.speed + passive.bonusSpd;
+      const variance = Math.floor(Math.random() * (effectiveSpeed * 0.3 + 3));
+      const initiative = Math.round(effectiveSpeed * 0.85) + variance;
+      participants.push({
+        id: `player_${action.member.id}`,
+        name: action.member.name,
+        isPlayer: true,
+        speed: effectiveSpeed,
+        initiative,
+        playerAction: action
+      });
+    }
 
-      if (action.type === 'attack') {
-        SoundEngine.playAttack();
-        addLog(`${actor.name} の こうげき！`);
-        await delay(350);
+    // Living enemies
+    currentEnemies.forEach((e, idx) => {
+      if (e.stats.hp <= 0) return;
+      const variance = Math.floor(Math.random() * (e.stats.speed * 0.3 + 3));
+      const initiative = Math.round(e.stats.speed * 0.85) + variance;
+      participants.push({
+        id: `enemy_${e.id}_${idx}`,
+        name: e.name,
+        isPlayer: false,
+        speed: e.stats.speed,
+        initiative,
+        enemyIndex: idx
+      });
+    });
 
-        // Resolve living target
-        let tIdx = action.targetEnemyIndex ?? getActiveTargetIndex(currentEnemies);
-        if (!currentEnemies[tIdx] || currentEnemies[tIdx].stats.hp <= 0) {
-          tIdx = getActiveTargetIndex(currentEnemies);
-        }
-        const targetEnemy = currentEnemies[tIdx];
-        if (!targetEnemy || targetEnemy.stats.hp <= 0) continue;
+    // Sort strictly by initiative (素早さによって攻撃の順番が変わる)
+    participants.sort((a, b) => b.initiative - a.initiative);
 
-        const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
-        if (isCrit) {
-          SoundEngine.playCritical();
-          addLog(`【隙の糸が見えた！】会心の一撃！！`);
-        }
+    setRoundTimeline(participants.map(p => ({
+      id: p.id,
+      name: p.name,
+      isPlayer: p.isPlayer,
+      speed: p.speed,
+      initiative: p.initiative
+    })));
 
-        const dmg = calculateDamage(actor, targetEnemy, undefined, isCrit, isEasyAssist);
-        targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - dmg);
-        setEnemies([...currentEnemies]);
+    // Process all combatants in speed order
+    for (const p of participants) {
+      if (areAllEnemiesDefeated(currentEnemies)) break;
+      if (party.isAllDead()) break;
 
-        setEnemyHitIndices([tIdx]);
-        setDamageNumbers({ [tIdx]: { value: dmg, isCrit } });
-        await delay(450);
-        setEnemyHitIndices([]);
-        setDamageNumbers({});
+      setActiveCombatantId(p.id);
 
-        addLog(`${targetEnemy.name} に ${dmg} の ダメージを あたえた！`);
-        if (targetEnemy.stats.hp <= 0) {
-          addLog(`💥 ${targetEnemy.name} を たおした！`);
-        }
-        await delay(250);
+      if (p.isPlayer && p.playerAction) {
+        const action = p.playerAction;
+        const actor = action.member;
+        if (actor.stats.hp <= 0) continue; // collapsed before acting
 
-      } else if (action.type === 'skill' && action.skill) {
-        const skill = action.skill;
-        if (actor.stats.bp < skill.bpCost) {
-          addLog(`${actor.name} は 呼吸力(BP) が 足りない！`);
-          await delay(300);
-          continue;
-        }
+        if (action.type === 'attack') {
+          SoundEngine.playAttack();
+          addLog(`${actor.name} の こうげき！ (素早さ:${p.speed})`);
+          await delay(350);
 
-        actor.stats.bp -= skill.bpCost;
-
-        // Ultimate cut-in if applicable
-        if (isUltimateSkill(actor, skill)) {
-          addLog(`★【極限奥義】${actor.name} は 全神経を集中させ、渾身の一撃を放つ！！`);
-          await triggerCutIn(actor, skill);
-        }
-
-        SoundEngine.playBreathSkill();
-        addLog(`『${skill.katagaki ? skill.katagaki + ' ' : ''}${skill.name}』！`);
-        await delay(450);
-
-        if (skill.effectType === 'heal') {
-          // Heal party member
-          SoundEngine.playHeal();
-          const target = party.activeMembers.find(m => m.stats.hp > 0 && m.stats.hp < m.stats.maxHp) || actor;
-          const healVal = Math.round(actor.stats.attack * (isEasyAssist ? 2.2 : 1.5));
-          target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + healVal);
-          setPartyDamageNumber({ value: healVal, isHeal: true });
-          addLog(`${target.name} の HPが ${healVal} 回復した！`);
-          await delay(400);
-          setPartyDamageNumber(null);
-        } else if (skill.target === 'all') {
-          // Attack ALL living enemies! (Super satisfying with multiple enemies!)
-          const livingIndices = currentEnemies
-            .map((e, idx) => (e.stats.hp > 0 ? idx : -1))
-            .filter(idx => idx >= 0);
-
-          const hitMap: Record<number, { value: number; isCrit: boolean }> = {};
-          for (const idx of livingIndices) {
-            const targetEnemy = currentEnemies[idx];
-            const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
-            const dmg = calculateDamage(actor, targetEnemy, skill, isCrit, isEasyAssist);
-            targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - dmg);
-            hitMap[idx] = { value: dmg, isCrit };
-          }
-
-          setEnemies([...currentEnemies]);
-          setEnemyHitIndices(livingIndices);
-          setDamageNumbers(hitMap);
-          await delay(550);
-          setEnemyHitIndices([]);
-          setDamageNumbers({});
-
-          for (const idx of livingIndices) {
-            const targetEnemy = currentEnemies[idx];
-            addLog(`${targetEnemy.name} に ${hitMap[idx].value} の 怒涛のダメージ！！`);
-            if (targetEnemy.stats.hp <= 0) {
-              addLog(`💥 ${targetEnemy.name} を たおした！`);
-            }
-          }
-          await delay(250);
-
-        } else {
-          // Single target attack skill
           let tIdx = action.targetEnemyIndex ?? getActiveTargetIndex(currentEnemies);
           if (!currentEnemies[tIdx] || currentEnemies[tIdx].stats.hp <= 0) {
             tIdx = getActiveTargetIndex(currentEnemies);
@@ -279,38 +275,256 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
           if (isCrit) {
             SoundEngine.playCritical();
-            addLog(`【隙の糸】呼吸の真髄が急所を貫く！！`);
+            addLog(`【隙の糸が見えた！】会心の一撃！！`);
           }
 
-          const dmg = calculateDamage(actor, targetEnemy, skill, isCrit, isEasyAssist);
+          const dmg = calculateDamage(actor, targetEnemy, undefined, isCrit, isEasyAssist);
           targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - dmg);
           setEnemies([...currentEnemies]);
 
           setEnemyHitIndices([tIdx]);
           setDamageNumbers({ [tIdx]: { value: dmg, isCrit } });
-          await delay(500);
+          await delay(450);
           setEnemyHitIndices([]);
           setDamageNumbers({});
 
-          addLog(`${targetEnemy.name} に ${dmg} の 怒涛のダメージ！！`);
+          addLog(`${targetEnemy.name} に ${dmg} の ダメージを あたえた！`);
           if (targetEnemy.stats.hp <= 0) {
             addLog(`💥 ${targetEnemy.name} を たおした！`);
           }
           await delay(250);
+
+        } else if (action.type === 'skill' && action.skill) {
+          const skill = action.skill;
+
+          // Check Auto-Replenish BP if actor lacks BP (アイテム持っているだけで自動適用)
+          if (actor.stats.bp < skill.bpCost) {
+            const autoBp = AutoItemService.checkAutoBpReplenish(party, actor, skill.bpCost);
+            if (autoBp) {
+              SoundEngine.playHeal();
+              addLog(autoBp.message!);
+              await delay(300);
+            }
+          }
+
+          if (actor.stats.bp < skill.bpCost) {
+            addLog(`${actor.name} は 呼吸力(BP) が 足りない！`);
+            await delay(300);
+            continue;
+          }
+
+          actor.stats.bp -= skill.bpCost;
+
+          // Ultimate cut-in strictly for the character's strongest breathing technique
+          if (isUltimateSkill(actor, skill)) {
+            addLog(`★【最強奥義】${actor.name} は 全神経を研ぎ澄まし、最強の呼吸『${skill.name}』を放つ！！`);
+            await triggerCutIn(actor, skill);
+          }
+
+          SoundEngine.playBreathSkill();
+          addLog(`『${skill.katagaki ? skill.katagaki + ' ' : ''}${skill.name}』！ (素早さ:${p.speed})`);
+          await delay(450);
+
+          if (skill.effectType === 'heal') {
+            SoundEngine.playHeal();
+            const target = party.activeMembers.find(m => m.stats.hp > 0 && m.stats.hp < m.stats.maxHp) || actor;
+            const healVal = Math.round(actor.stats.attack * (isEasyAssist ? 2.2 : 1.5));
+            target.stats.hp = Math.min(target.stats.maxHp, target.stats.hp + healVal);
+            setPartyDamageNumber({ value: healVal, isHeal: true });
+            addLog(`${target.name} の HPが ${healVal} 回復した！`);
+            await delay(400);
+            setPartyDamageNumber(null);
+          } else if (skill.target === 'all') {
+            const livingIndices = currentEnemies
+              .map((e, idx) => (e.stats.hp > 0 ? idx : -1))
+              .filter(idx => idx >= 0);
+
+            const hitMap: Record<number, { value: number; isCrit: boolean }> = {};
+            for (const idx of livingIndices) {
+              const targetEnemy = currentEnemies[idx];
+              const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
+              const dmg = calculateDamage(actor, targetEnemy, skill, isCrit, isEasyAssist);
+              targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - dmg);
+              hitMap[idx] = { value: dmg, isCrit };
+            }
+
+            setEnemies([...currentEnemies]);
+            setEnemyHitIndices(livingIndices);
+            setDamageNumbers(hitMap);
+            await delay(550);
+            setEnemyHitIndices([]);
+            setDamageNumbers({});
+
+            for (const idx of livingIndices) {
+              const targetEnemy = currentEnemies[idx];
+              addLog(`${targetEnemy.name} に ${hitMap[idx].value} の 怒涛のダメージ！！`);
+              if (targetEnemy.stats.hp <= 0) {
+                addLog(`💥 ${targetEnemy.name} を たおした！`);
+              }
+            }
+            await delay(250);
+
+          } else {
+            let tIdx = action.targetEnemyIndex ?? getActiveTargetIndex(currentEnemies);
+            if (!currentEnemies[tIdx] || currentEnemies[tIdx].stats.hp <= 0) {
+              tIdx = getActiveTargetIndex(currentEnemies);
+            }
+            const targetEnemy = currentEnemies[tIdx];
+            if (!targetEnemy || targetEnemy.stats.hp <= 0) continue;
+
+            const isCrit = isEasyAssist ? (Math.random() < 0.25 || isCriticalHit(actor)) : isCriticalHit(actor);
+            if (isCrit) {
+              SoundEngine.playCritical();
+              addLog(`【隙の糸】呼吸の真髄が急所を貫く！！`);
+            }
+
+            const dmg = calculateDamage(actor, targetEnemy, skill, isCrit, isEasyAssist);
+            targetEnemy.stats.hp = Math.max(0, targetEnemy.stats.hp - dmg);
+            setEnemies([...currentEnemies]);
+
+            setEnemyHitIndices([tIdx]);
+            setDamageNumbers({ [tIdx]: { value: dmg, isCrit } });
+            await delay(500);
+            setEnemyHitIndices([]);
+            setDamageNumbers({});
+
+            addLog(`${targetEnemy.name} に ${dmg} の 怒涛のダメージ！！`);
+            if (targetEnemy.stats.hp <= 0) {
+              addLog(`💥 ${targetEnemy.name} を たおした！`);
+            }
+            await delay(250);
+          }
+
+        } else if (action.type === 'item' && action.item) {
+          SoundEngine.playHeal();
+          const res = party.useItem(action.item.id, party.activeMembers.indexOf(actor));
+          addLog(res.message);
+          await delay(350);
         }
 
-      } else if (action.type === 'item' && action.item) {
-        SoundEngine.playHeal();
-        const res = party.useItem(action.item.id, party.activeMembers.indexOf(actor));
-        addLog(res.message);
-        await delay(350);
-      }
+      } else if (!p.isPlayer && p.enemyIndex !== undefined) {
+        // Enemy Turn in Speed Order
+        const livingEnemy = currentEnemies[p.enemyIndex];
+        if (!livingEnemy || livingEnemy.stats.hp <= 0) {
+          // Defeated by faster slayer earlier this round!
+          continue;
+        }
 
-      // Check if all enemies defeated after action
-      if (areAllEnemiesDefeated(currentEnemies)) {
-        break;
+        const livingMembers = party.activeMembers.filter(m => m.stats.hp > 0);
+        if (livingMembers.length === 0) break;
+
+        const useSkill = livingEnemy.skills.length > 0 && Math.random() < 0.6 && livingEnemy.stats.bp >= 10;
+        const enemySkill = useSkill ? livingEnemy.skills[Math.floor(Math.random() * livingEnemy.skills.length)] : undefined;
+
+        if (enemySkill) {
+          SoundEngine.playBreathSkill();
+          addLog(`${livingEnemy.name} の ${enemySkill.name}！！ (素早さ:${p.speed})`);
+          await delay(450);
+
+          if (enemySkill.target === 'all') {
+            for (let i = 0; i < party.activeMembers.length; i++) {
+              const member = party.activeMembers[i];
+              if (member.stats.hp <= 0) continue;
+              const dmg = calculateDamage(livingEnemy, member, enemySkill, false, isEasyAssist);
+              member.stats.hp = Math.max(0, member.stats.hp - dmg);
+              setPartyHitIndex(i);
+              addLog(`${member.name} は ${dmg} の ダメージを うけた！`);
+              await delay(250);
+
+              // Auto Item Application check on damage
+              if (member.stats.hp <= 0) {
+                const reviveRes = AutoItemService.checkAutoRevive(party, member);
+                if (reviveRes) {
+                  SoundEngine.playHeal();
+                  addLog(reviveRes.message!);
+                  setPartyDamageNumber({ value: reviveRes.recoveredAmount || 50, isHeal: true });
+                  await delay(350);
+                  setPartyDamageNumber(null);
+                }
+              } else if (member.stats.hp <= Math.round(member.stats.maxHp * 0.45)) {
+                const healRes = AutoItemService.checkAutoHpHeal(party, member);
+                if (healRes) {
+                  SoundEngine.playHeal();
+                  addLog(healRes.message!);
+                  setPartyDamageNumber({ value: healRes.recoveredAmount || 50, isHeal: true });
+                  await delay(350);
+                  setPartyDamageNumber(null);
+                }
+              }
+            }
+            setPartyHitIndex(null);
+          } else {
+            const target = livingMembers[Math.floor(Math.random() * livingMembers.length)];
+            const targetIndex = party.activeMembers.indexOf(target);
+            const dmg = calculateDamage(livingEnemy, target, enemySkill, false, isEasyAssist);
+            target.stats.hp = Math.max(0, target.stats.hp - dmg);
+            setPartyHitIndex(targetIndex);
+            SoundEngine.playAttack();
+            await delay(350);
+            setPartyHitIndex(null);
+            addLog(`${target.name} は ${dmg} の 深手を おった！`);
+
+            // Auto Item Application check on damage
+            if (target.stats.hp <= 0) {
+              const reviveRes = AutoItemService.checkAutoRevive(party, target);
+              if (reviveRes) {
+                SoundEngine.playHeal();
+                addLog(reviveRes.message!);
+                setPartyDamageNumber({ value: reviveRes.recoveredAmount || 50, isHeal: true });
+                await delay(350);
+                setPartyDamageNumber(null);
+              }
+            } else if (target.stats.hp <= Math.round(target.stats.maxHp * 0.45)) {
+              const healRes = AutoItemService.checkAutoHpHeal(party, target);
+              if (healRes) {
+                SoundEngine.playHeal();
+                addLog(healRes.message!);
+                setPartyDamageNumber({ value: healRes.recoveredAmount || 50, isHeal: true });
+                await delay(350);
+                setPartyDamageNumber(null);
+              }
+            }
+          }
+        } else {
+          // Normal attack
+          const target = livingMembers[Math.floor(Math.random() * livingMembers.length)];
+          const targetIndex = party.activeMembers.indexOf(target);
+          SoundEngine.playAttack();
+          addLog(`${livingEnemy.name} の こうげき！ (素早さ:${p.speed})`);
+          await delay(350);
+
+          const dmg = calculateDamage(livingEnemy, target, undefined, false, isEasyAssist);
+          target.stats.hp = Math.max(0, target.stats.hp - dmg);
+          setPartyHitIndex(targetIndex);
+          await delay(350);
+          setPartyHitIndex(null);
+          addLog(`${target.name} に ${dmg} の ダメージ！`);
+
+          // Auto Item Application check on damage
+          if (target.stats.hp <= 0) {
+            const reviveRes = AutoItemService.checkAutoRevive(party, target);
+            if (reviveRes) {
+              SoundEngine.playHeal();
+              addLog(reviveRes.message!);
+              setPartyDamageNumber({ value: reviveRes.recoveredAmount || 50, isHeal: true });
+              await delay(350);
+              setPartyDamageNumber(null);
+            }
+          } else if (target.stats.hp <= Math.round(target.stats.maxHp * 0.45)) {
+            const healRes = AutoItemService.checkAutoHpHeal(party, target);
+            if (healRes) {
+              SoundEngine.playHeal();
+              addLog(healRes.message!);
+              setPartyDamageNumber({ value: healRes.recoveredAmount || 50, isHeal: true });
+              await delay(350);
+              setPartyDamageNumber(null);
+            }
+          }
+        }
       }
     }
+
+    setActiveCombatantId(null);
 
     // 2. Check Victory
     if (areAllEnemiesDefeated(currentEnemies)) {
@@ -348,66 +562,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       return;
     }
 
-    // 3. Enemy Turn: Each living enemy takes an action!
-    const livingEnemies = currentEnemies.filter(e => e.stats.hp > 0);
-    for (const livingEnemy of livingEnemies) {
-      if (party.isAllDead()) break;
-      await delay(250);
-
-      const livingMembers = party.activeMembers.filter(m => m.stats.hp > 0);
-      if (livingMembers.length === 0) break;
-
-      // Pick random skill or regular attack
-      const useSkill = livingEnemy.skills.length > 0 && Math.random() < 0.6 && livingEnemy.stats.bp >= 10;
-      const enemySkill = useSkill ? livingEnemy.skills[Math.floor(Math.random() * livingEnemy.skills.length)] : undefined;
-
-      if (enemySkill) {
-        SoundEngine.playBreathSkill();
-        addLog(`${livingEnemy.name} の ${enemySkill.name}！！`);
-        await delay(450);
-
-        if (enemySkill.target === 'all') {
-          // Attack entire party
-          for (let i = 0; i < party.activeMembers.length; i++) {
-            const member = party.activeMembers[i];
-            if (member.stats.hp <= 0) continue;
-            const dmg = calculateDamage(livingEnemy, member, enemySkill, false, isEasyAssist);
-            member.stats.hp = Math.max(0, member.stats.hp - dmg);
-            setPartyHitIndex(i);
-            addLog(`${member.name} は ${dmg} の ダメージを うけた！`);
-            await delay(250);
-          }
-          setPartyHitIndex(null);
-        } else {
-          // Target single party member
-          const target = livingMembers[Math.floor(Math.random() * livingMembers.length)];
-          const targetIndex = party.activeMembers.indexOf(target);
-          const dmg = calculateDamage(livingEnemy, target, enemySkill, false, isEasyAssist);
-          target.stats.hp = Math.max(0, target.stats.hp - dmg);
-          setPartyHitIndex(targetIndex);
-          SoundEngine.playAttack();
-          await delay(350);
-          setPartyHitIndex(null);
-          addLog(`${target.name} は ${dmg} の 深手を おった！`);
-        }
-      } else {
-        // Normal attack
-        const target = livingMembers[Math.floor(Math.random() * livingMembers.length)];
-        const targetIndex = party.activeMembers.indexOf(target);
-        SoundEngine.playAttack();
-        addLog(`${livingEnemy.name} の こうげき！`);
-        await delay(350);
-
-        const dmg = calculateDamage(livingEnemy, target, undefined, false, isEasyAssist);
-        target.stats.hp = Math.max(0, target.stats.hp - dmg);
-        setPartyHitIndex(targetIndex);
-        await delay(350);
-        setPartyHitIndex(null);
-        addLog(`${target.name} に ${dmg} の ダメージ！`);
-      }
-    }
-
-    // 4. Check Wipeout ("死んだら宿で復活だよ")
+    // 3. Check Wipeout ("死んだら宿で復活だよ")
     if (party.isAllDead()) {
       SoundEngine.playWipeout();
       addLog(`隊士たちは力尽き、全員たおれてしまった……！`);
@@ -516,6 +671,41 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             <Play className="w-3 h-3" />
             <span>AUTO</span>
           </button>
+        </div>
+      </div>
+
+      {/* Speed Action Order Bar (素早さ行動順・タイムライン) */}
+      <div className="w-full bg-slate-900/95 border border-slate-700/80 rounded px-2.5 py-1.5 flex items-center justify-between gap-2 overflow-x-auto text-[11px] shadow-sm">
+        <div className="flex items-center gap-1.5 shrink-0 text-amber-300 font-bold">
+          <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+          <span className="whitespace-nowrap">
+            <FuriganaText text="素早[すばや]さ行動順:" />
+          </span>
+        </div>
+        <div className="flex items-center gap-1 flex-1 overflow-x-auto py-0.5">
+          {(isProcessingTurn && roundTimeline.length > 0 ? roundTimeline : speedRankings).map((c, i) => {
+            const isActive = isProcessingTurn && activeCombatantId === c.id;
+            return (
+              <React.Fragment key={c.id}>
+                {i > 0 && <span className="text-slate-600 text-[10px] shrink-0">➔</span>}
+                <div
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shrink-0 transition-all ${
+                    isActive
+                      ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 font-black scale-105 shadow-md animate-pulse'
+                      : c.isPlayer
+                      ? 'bg-cyan-950/80 border border-cyan-700 text-cyan-200'
+                      : 'bg-rose-950/80 border border-rose-700 text-rose-200'
+                  }`}
+                >
+                  <span className="font-mono text-[9px] opacity-75">{i + 1}.</span>
+                  <span className="truncate max-w-[80px] sm:max-w-[120px]">{c.name.split(' ')[0]}</span>
+                  <span className="font-mono text-[9px] text-amber-300 bg-slate-950/60 px-1 rounded">
+                    速{c.speed}
+                  </span>
+                </div>
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
 
@@ -665,7 +855,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 flex-1">
         {/* Command Window */}
         <DqFrame
-          title={currentMember && !isProcessingTurn ? `${currentMember.name} の 行動` : '状況'}
+          title={
+            currentMember && !isProcessingTurn
+              ? `${currentMember.name} (素早さ:${currentMember.stats.speed + AutoItemService.getPassiveStatBonuses(party.inventory).bonusSpd})`
+              : '状況'
+          }
           className="md:col-span-1 p-2 flex flex-col justify-center"
         >
           {isProcessingTurn ? (
@@ -750,12 +944,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     SoundEngine.playCursor();
                     setMenuMode('items');
                   }}
-                  className="flex items-center gap-1.5 p-2.5 min-h-[46px] bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 rounded border border-slate-600 text-left transition-colors touch-manipulation"
+                  className="flex items-center gap-1.5 p-2 min-h-[46px] bg-slate-800 hover:bg-slate-700 active:bg-emerald-600 rounded border border-slate-600 text-left transition-colors touch-manipulation"
                 >
                   <Package className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="font-bold">
-                    <FuriganaText text="道具[どうぐ]" />
-                  </span>
+                  <div className="flex flex-col text-left leading-tight">
+                    <span className="font-bold flex items-center gap-1">
+                      <FuriganaText text="道具[どうぐ]" />
+                      <span className="text-[9px] px-1 py-0.2 bg-emerald-700 text-white rounded font-normal">自動適用</span>
+                    </span>
+                    <span className="text-[9px] text-slate-400 truncate">
+                      {party.inventory.filter(i => i.count > 0).length}種を所持
+                    </span>
+                  </div>
                 </button>
 
                 <button
@@ -827,15 +1027,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                             <Flame className="w-2.5 h-2.5 text-slate-950" />
                             【最強奥義】
                           </span>
-                        ) : idx === 0 && sk.power >= 160 ? (
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-rose-600 text-white rounded">
-                            【強】
+                        ) : sk.breathStyle !== 'none' ? (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-cyan-700 text-white rounded">
+                            【呼吸技】
                           </span>
                         ) : sk.effectType === 'heal' ? (
                           <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-600 text-white rounded">
                             【回復】
                           </span>
-                        ) : null}
+                        ) : (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-700 text-slate-200 rounded">
+                            【基本技】
+                          </span>
+                        )}
 
                         {isAllTarget && (
                           <span className="px-1 py-0.5 text-[9px] font-bold bg-purple-600 text-white rounded">
@@ -862,37 +1066,50 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               })}
             </div>
           ) : menuMode === 'items' && currentMember ? (
-            <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
-              <div className="flex justify-between items-center text-[10px] text-slate-400 border-b border-slate-700 pb-1">
-                <span>所持どうぐ</span>
+            <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+              <div className="flex justify-between items-center text-[10px] text-slate-400 border-b border-slate-700 pb-1 sticky top-0 bg-slate-900 z-10">
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                  <span>所持道具（戦闘中常時・全自動適用）</span>
+                </span>
                 <button
                   onClick={() => {
                     SoundEngine.playCancel();
                     setMenuMode('main');
                   }}
-                  className="text-amber-400 hover:underline"
+                  className="text-amber-400 hover:underline px-1 py-0.5"
                 >
                   [もどる]
                 </button>
               </div>
 
+              <div className="text-[10px] text-emerald-300 bg-emerald-950/60 border border-emerald-700/60 p-2 rounded leading-relaxed">
+                ★【自動適用】アイテムは持っているだけで、ピンチ時に全自動で即座に発動します！（HP低下時に傷薬、死亡時に霊水で即時蘇生、BP不足時におにぎり、御守り・瓢箪は常時能力UP）
+              </div>
+
               {party.inventory.filter(i => i.count > 0).length === 0 ? (
-                <div className="text-xs text-slate-500 p-2 text-center">どうぐを持っていません</div>
+                <div className="text-xs text-slate-500 p-3 text-center bg-slate-900/50 rounded">
+                  現在所持している道具はありません（宿屋で購入可能）
+                </div>
               ) : (
                 party.inventory
                   .filter(i => i.count > 0)
                   .map(it => (
-                    <button
+                    <div
                       key={it.id}
-                      onClick={() => queueAction({ member: currentMember, type: 'item', item: it })}
-                      className="flex items-center justify-between p-1.5 rounded border border-slate-600 bg-slate-800 hover:bg-emerald-900 text-xs text-left"
+                      className="flex items-center justify-between p-2 rounded border border-slate-700 bg-slate-800/90 text-xs"
                     >
-                      <div>
-                        <div className="font-bold text-emerald-300">{it.name}</div>
-                        <div className="text-[10px] text-slate-400">{it.description}</div>
+                      <div className="flex-1 pr-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-emerald-300">{it.name}</span>
+                          <span className="px-1.5 py-0.2 text-[9px] bg-emerald-900 text-emerald-200 border border-emerald-600 rounded">
+                            自動適用
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{it.description}</div>
                       </div>
-                      <span className="text-xs text-amber-300 font-mono shrink-0 ml-1">x{it.count}</span>
-                    </button>
+                      <span className="text-xs text-amber-300 font-mono shrink-0 ml-1 font-bold">x{it.count}</span>
+                    </div>
                   ))
               )}
             </div>

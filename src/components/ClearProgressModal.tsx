@@ -97,7 +97,7 @@ export const ClearProgressModal: React.FC<ClearProgressModalProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-            <span className="truncate">仲間 ({alliesStatus.recruitedCount}/{alliesStatus.totalCount})</span>
+            <span className="truncate">仲間・九柱 ({alliesStatus.recruitedCount}/{alliesStatus.totalCount})</span>
           </button>
 
           <button
@@ -161,13 +161,13 @@ export const ClearProgressModal: React.FC<ClearProgressModalProps> = ({
                 </p>
               </div>
 
-              {/* Requirement 1: All Allies */}
+              {/* Requirement 1: All Allies (Hashira Only) */}
               <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-emerald-400" />
                     <span className="font-bold text-emerald-200">
-                      条件①: 全ての仲間集め
+                      条件①: 全ての仲間集め（九柱全員集結！）
                     </span>
                   </div>
                   <span className="font-mono font-bold text-emerald-300">
@@ -186,8 +186,8 @@ export const ClearProgressModal: React.FC<ClearProgressModalProps> = ({
 
                 <p className="text-[11px] text-slate-400">
                   {alliesStatus.isComplete
-                    ? '✔️ 鬼殺隊士・柱・協力者全員が揃いました！'
-                    : `あと ${alliesStatus.missingAllies.length} 名の仲間が未加入です。「仲間」タブでヒントを確認できます。`}
+                    ? '✔️ 鬼殺隊の最高戦力【九柱】全員が集結しました！'
+                    : `あと ${alliesStatus.missingAllies.length} 名の柱が未加入です（※完全クリア条件の「全仲間」は九柱全員です）。各章の「柱稽古」ミニゲームで仲間にできます。`}
                 </p>
               </div>
 
@@ -240,42 +240,75 @@ export const ClearProgressModal: React.FC<ClearProgressModalProps> = ({
             <div className="space-y-2">
               <div className="flex justify-between items-center bg-slate-900 p-2 rounded border border-slate-800">
                 <span className="font-bold text-slate-200">
-                  集めた仲間: {alliesStatus.recruitedCount} / {alliesStatus.totalCount} 名
+                  鬼殺隊・九柱集結状況: {alliesStatus.recruitedCount} / {alliesStatus.totalCount} 名
                 </span>
                 <span className="text-[11px] text-emerald-400 font-bold">
-                  {alliesStatus.isComplete ? '全員集結完了！' : `未加入: 残り ${alliesStatus.missingAllies.length} 名`}
+                  {alliesStatus.isComplete ? '九柱全員集結完了！' : `未加入: 残り ${alliesStatus.missingAllies.length} 名`}
                 </span>
               </div>
 
-              {alliesStatus.missingAllies.length > 0 ? (
-                <div className="space-y-1.5">
-                  <span className="text-[11px] text-slate-400 font-bold block mb-1">
-                    【未加入の仲間一覧＆加入のヒント】
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {alliesStatus.missingAllies.map(member => (
-                      <div key={member.id} className="p-2 rounded bg-slate-900/90 border border-slate-800 flex items-center gap-2">
-                        <PixelSprite character={member} size={36} />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-amber-200 text-xs truncate">
-                            {member.name}
+              <div className="text-[11px] text-slate-300 bg-slate-950/80 p-2 rounded border border-slate-800 leading-relaxed">
+                ※ 完全クリア条件の「全仲間」は鬼殺隊の最高戦力<span className="text-amber-300 font-bold">【九柱全員】</span>の集結です。
+                <span className="text-cyan-300 font-bold">「勧誘モード」</span>の各章で<span className="text-emerald-300 font-bold">「柱稽古（タイミング判定）」</span>を成功させると仲間に加入します！
+              </div>
+
+              {/* All 9 Hashira Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {TwelveKizukiService.getRecruitableAllies(catalog).map(hashira => {
+                  const isRecruited = roster.some(m => m.id === hashira.id);
+                  const hints: Record<string, string> = {
+                    char_giyu: '勧誘モード 第1章(藤襲山) 柱稽古',
+                    char_shinobu: '勧誘モード 第2章(浅草) または宿屋',
+                    char_rengoku: '勧誘モード 第5章(無限列車) 柱稽古',
+                    char_tengen: '勧誘モード 第6章(吉原遊郭) 柱稽古',
+                    char_muichiro: '勧誘モード 第7章(刀鍛冶) 柱稽古',
+                    char_mitsuri: '勧誘モード 第7章(刀鍛冶) 柱稽古',
+                    char_gyomei: '勧誘モード 第8章(無限城) 柱稽古',
+                    char_sanemi: '勧誘モード 第8章(無限城) 柱稽古',
+                    char_obanai: '勧誘モード 第8章(無限城) 柱稽古'
+                  };
+
+                  return (
+                    <div
+                      key={hashira.id}
+                      className={`p-2 rounded-lg border flex flex-col justify-between ${
+                        isRecruited
+                          ? 'bg-emerald-950/40 border-emerald-600/80 text-emerald-200'
+                          : 'bg-slate-900/90 border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <PixelSprite character={hashira} size={36} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">
+                              {hashira.title}
+                            </span>
+                            {isRecruited ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            ) : (
+                              <Circle className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                            )}
                           </div>
-                          <div className="text-[10px] text-slate-400 truncate">
-                            {member.title} ({member.rank})
-                          </div>
-                          <div className="text-[9px] text-cyan-300 truncate">
-                            💡 原作物語の柱稽古・試練クイズ または 宿屋で加入可能
+                          <div className="font-bold text-xs mt-0.5 text-slate-200 truncate">
+                            {hashira.name}
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-6 text-center bg-emerald-950/30 border border-emerald-600 rounded-lg text-emerald-200 font-bold">
-                  🎉 おめでとうございます！全ての仲間がロスターに集結しました！
-                </div>
-              )}
+
+                      <div className="text-[9px] mt-1.5 pt-1 border-t border-slate-800/80 truncate">
+                        {isRecruited ? (
+                          <span className="text-emerald-400 font-bold">加入済 ✔️（前線/待機）</span>
+                        ) : (
+                          <span className="text-amber-300">
+                            💡 {hints[hashira.id] || '物語の柱稽古で加入'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

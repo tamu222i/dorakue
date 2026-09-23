@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
 import { Character, Item } from '../domain/models/types.ts';
 import { InnService } from '../application/InnUseCase.ts';
@@ -22,6 +22,7 @@ interface InnScreenProps {
   catalog: Character[];
   onBackToWorld: () => void;
   initialMessage?: string;
+  initialTab?: InnTab;
   onEncounter?: (ids: string[]) => void;
 }
 
@@ -32,9 +33,16 @@ export const InnScreen: React.FC<InnScreenProps> = ({
   catalog,
   onBackToWorld,
   initialMessage,
+  initialTab,
   onEncounter
 }) => {
-  const [activeTab, setActiveTab] = useState<InnTab>(initialMessage ? 'rest' : 'rest');
+  const [activeTab, setActiveTab] = useState<InnTab>(initialTab || (initialMessage ? 'rest' : 'rest'));
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [isFormationModalOpen, setIsFormationModalOpen] = useState<boolean>(false);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Character | null>(null);
@@ -57,11 +65,13 @@ export const InnScreen: React.FC<InnScreenProps> = ({
     cost: number;
   } | null>(null);
 
-  // Shop items for sale
+  // Shop items for sale (自動適用アイテム)
   const SHOP_ITEMS: Item[] = [
-    { id: 'item_herb', name: '傷薬（薬草）', description: 'HPを50回復する。', cost: 30, type: 'heal_hp', value: 50, count: 1 },
-    { id: 'item_riceball', name: '特製おにぎり', description: '呼吸力（BP）を25回復する。', cost: 40, type: 'heal_bp', value: 25, count: 1 },
-    { id: 'item_wisteria_water', name: '藤の花の霊水', description: '戦闘不能の味方をHP半分で蘇生する。', cost: 150, type: 'revive', value: 50, count: 1 },
+    { id: 'item_herb', name: '傷薬（薬草）', description: '【自動適用】HPが半分以下になると自動で傷を癒し、HPを50回復する。', cost: 30, type: 'heal_hp', value: 50, count: 1 },
+    { id: 'item_riceball', name: '特製おにぎり', description: '【自動適用】呼吸力が不足すると自動で食し、BPを25回復する。', cost: 40, type: 'heal_bp', value: 25, count: 1 },
+    { id: 'item_wisteria_water', name: '藤の花の霊水', description: '【自動適用】戦闘不能になると自動で奇跡を起こし、HP半分で即座に蘇生する。', cost: 150, type: 'revive', value: 50, count: 1 },
+    { id: 'item_gourd', name: '鍛錬の瓢箪', description: '【常時自動適用】全集中の常中訓練用。持っているだけで素早さ+12、攻撃力+8。', cost: 100, type: 'buff', value: 12, count: 1 },
+    { id: 'item_talisman', name: '厄除の御守り', description: '【常時自動適用】厄を祓う御守り。持っているだけで防御力+10、最大HP+25。', cost: 100, type: 'buff', value: 10, count: 1 },
   ];
 
   // Rest action
