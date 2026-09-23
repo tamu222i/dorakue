@@ -874,6 +874,7 @@ export default function App() {
         {screen === 'zukan' && (
           <ZukanScreen
             catalog={catalog}
+            partyRoster={party.roster}
             partyRosterIds={partyRosterIds}
             encounteredIds={encounteredIds}
             onBack={() => setScreen('world')}

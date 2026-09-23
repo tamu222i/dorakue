@@ -1093,6 +1093,102 @@ export function checkNewLearnedSkills(char: Character, oldLevel: number, newLeve
   return newUnlocks;
 }
 
+export interface SecretBreathTechnique {
+  level: number;
+  isUltimate: boolean;
+  hint: string;
+}
+
+export interface CharacterBreathingProgress {
+  characterId: string;
+  characterName: string;
+  isDemon: boolean;
+  breathStyle: BreathStyle;
+  totalBreathCount: number;
+  learnedBreathCount: number;
+  unlearnedBreathCount: number;
+  learnedBreaths: Skill[];
+  unlearnedSecrets: SecretBreathTechnique[];
+  starterSkills: Skill[];
+}
+
+/**
+ * Calculates both learned techniques and secret unacquired breathing techniques with their level requirements
+ */
+export function getCharacterBreathingProgression(char: Character): CharacterBreathingProgress {
+  const tree = CHARACTER_SKILL_TREES[char.id] || getGenericSkillTree(char.breathStyle, char.role);
+  const isDemon = char.role === 'demon';
+
+  const isBreathOrArt = (s: Skill) => {
+    if (!s) return false;
+    if (s.breathStyle !== 'none') return true;
+    if (s.katagaki && (s.katagaki.includes('呼吸') || s.katagaki.includes('血鬼術') || s.katagaki.includes('奥義') || s.katagaki.includes('ヒノカミ'))) return true;
+    if (s.isUltimate) return true;
+    return false;
+  };
+
+  const starterSkills: Skill[] = [];
+  const learnedBreaths: Skill[] = [];
+  const unlearnedSecrets: SecretBreathTechnique[] = [];
+  const seenIds = new Set<string>();
+
+  for (const entry of tree) {
+    if (seenIds.has(entry.skill.id)) continue;
+    seenIds.add(entry.skill.id);
+
+    const isBreathing = isBreathOrArt(entry.skill);
+    const hasLearned = entry.level <= char.level || char.skills.some(s => s.id === entry.skill.id);
+
+    if (hasLearned) {
+      const existing = char.skills.find(s => s.id === entry.skill.id) || entry.skill;
+      if (isBreathing) {
+        learnedBreaths.push(existing);
+      } else {
+        starterSkills.push(existing);
+      }
+    } else {
+      if (isBreathing) {
+        const isUlt = isUltimateSkill(char, entry.skill);
+        unlearnedSecrets.push({
+          level: entry.level,
+          isUltimate: isUlt,
+          hint: isUlt ? `Lv.${entry.level}で極限奥義が開眼` : `Lv.${entry.level}で開眼`
+        });
+      }
+    }
+  }
+
+  // Check any additional skills currently on character
+  for (const s of char.skills) {
+    if (!seenIds.has(s.id)) {
+      seenIds.add(s.id);
+      if (isBreathOrArt(s)) {
+        learnedBreaths.push(s);
+      } else {
+        starterSkills.push(s);
+      }
+    }
+  }
+
+  // Sort unlearned secrets by level
+  unlearnedSecrets.sort((a, b) => a.level - b.level);
+
+  const totalBreathCount = learnedBreaths.length + unlearnedSecrets.length;
+
+  return {
+    characterId: char.id,
+    characterName: char.name,
+    isDemon,
+    breathStyle: char.breathStyle,
+    totalBreathCount,
+    learnedBreathCount: learnedBreaths.length,
+    unlearnedBreathCount: unlearnedSecrets.length,
+    learnedBreaths,
+    unlearnedSecrets,
+    starterSkills
+  };
+}
+
 /**
  * Registered IDs of the true STRONGEST ultimate secret arts (最強の呼吸)
  */

@@ -117,6 +117,8 @@ async function runTests() {
   // GIVEN: Mock localStorage in Node environment
   const mockStorage: Record<string, string> = {};
   (globalThis as any).window = {
+    addEventListener: () => {},
+    removeEventListener: () => {},
     localStorage: {
       get length() { return Object.keys(mockStorage).length; },
       key: (i: number) => Object.keys(mockStorage)[i] || null,
@@ -124,6 +126,11 @@ async function runTests() {
       setItem: (key: string, val: string) => { mockStorage[key] = val; },
       removeItem: (key: string) => { delete mockStorage[key]; }
     }
+  };
+  (globalThis as any).document = {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    createElement: () => ({ style: {} }),
   };
 
   // WHEN: Saving party with 300 money, chapter 3, and 3 recruited members
@@ -468,6 +475,185 @@ async function runTests() {
 
   const [t1_lv40, t2_lv40, t3_lv40, t4_lv40] = calcTiers(40);
   assert(t1_lv40 === 37 && t2_lv40 === 40 && t3_lv40 === 42 && t4_lv40 === 44, 'Then: Party Lv.40 stages are Lv.37 -> Lv.40 -> Lv.42 -> Lv.44');
+
+  // Scenario 13: ユーザー要望「アイテムの効力自動BP回復が効かない」の解決検証
+  console.log('Scenario: Automatic BP recovery via inventory items (AutoItemService)');
+  const { AutoItemService } = await import('../src/domain/services/AutoItemService.ts');
+
+  // 1. 所持アイテムからの回復可能BP総量計算
+  const bpParty = new PartyAggregate({ ...tanjiro!, level: 20 });
+  const initialRiceball = bpParty.inventory.find(i => i.type === 'heal_bp');
+  assert(initialRiceball !== undefined && initialRiceball.count > 0, 'Given: Party starts with BP healing items (特製おにぎり)');
+  const totalRecoverable = AutoItemService.getTotalRecoverableBp(bpParty);
+  assert(totalRecoverable === initialRiceball!.value * initialRiceball!.count, `Then: getTotalRecoverableBp accurately calculates total BP potential (${totalRecoverable} BP)`);
+
+  // 2. BP不足時（スキルコストより低い時）の自動補給可否判定
+  const testHero = bpParty.activeMembers[0];
+  testHero.stats.maxBp = 100;
+  testHero.stats.bp = 5; // わずか5 BP
+  const skillCost = 40; // 40 BP必要な技
+  assert(
+    AutoItemService.canAffordSkillWithAutoItems(bpParty, testHero, skillCost) === true,
+    'Then: canAffordSkillWithAutoItems returns true when inventory has sufficient BP items to cover the gap'
+  );
+
+  // 3. 必要なBPを満たすまで複数アイテムを自動消費して即座にBP補給
+  const prevCount = initialRiceball!.count;
+  const autoResult = AutoItemService.checkAutoBpReplenish(bpParty, testHero, skillCost);
+  assert(autoResult !== null && autoResult.triggered === true, 'Then: Auto BP replenish triggers successfully');
+  assert(testHero.stats.bp >= skillCost, `Then: Hero BP replenished from 5 to ${testHero.stats.bp} (>= ${skillCost} BP for breathing skill)`);
+  assert(initialRiceball!.count < prevCount, `Then: Item count decremented from ${prevCount} to ${initialRiceball!.count}`);
+  assert(Boolean(autoResult?.message?.includes('全集中の呼吸を整え') || autoResult?.message?.includes('特製おにぎり')), 'Then: Clear informative battle message generated');
+
+  // 4. BPが十分にある時は無駄にアイテムを消費しない
+  testHero.stats.bp = 90;
+  const noTriggerResult = AutoItemService.checkAutoBpReplenish(bpParty, testHero);
+  assert(noTriggerResult === null, 'Then: Auto BP replenish does NOT trigger when BP is abundant (>= threshold)');
+
+  // 5. アイテムが0個になった時は回復不可
+  bpParty.inventory.filter(i => i.type === 'heal_bp').forEach(i => i.count = 0);
+  testHero.stats.bp = 2;
+  assert(
+    AutoItemService.canAffordSkillWithAutoItems(bpParty, testHero, skillCost) === false,
+    'Then: canAffordSkillWithAutoItems returns false when no BP items remain in inventory'
+  );
+  const emptyResult = AutoItemService.checkAutoBpReplenish(bpParty, testHero, skillCost);
+  assert(emptyResult === null, 'Then: checkAutoBpReplenish returns null when inventory has 0 items');
+
+  // Scenario 14: ユーザー要望「戦闘に勝ってレベル上がったら都度表示して。特に新しい呼吸を覚えたときは派手にね」の検証
+  console.log('Scenario: Post-battle level up and flashy new breathing technique acquisition modal');
+  const { SoundEngine } = await import('../src/infrastructure/audio/RetroSound.ts');
+  const { VictoryLevelUpModal } = await import('../src/components/VictoryLevelUpModal.tsx');
+  const ReactDOMServer = await import('react-dom/server');
+  const React = await import('react');
+
+  // 1. SoundEngine に新呼吸会得用の華やかなファンファーレが実装されていること
+  assert(typeof SoundEngine.playNewSkillFanfare === 'function', 'Then: SoundEngine.playNewSkillFanfare is defined');
+
+  // 2. Lv.1 から Lv.3 への成長で新呼吸（水面斬り）が会得され、detailedLevelUps に記録されること
+  const testLevelParty = new PartyAggregate({
+    ...tanjiro!,
+    level: 1,
+    exp: 0,
+    skills: tanjiro!.skills.filter(s => s.breathStyle === 'none'),
+    nextExp: PartyAggregate.calculateNextExp(1)
+  });
+
+  // 大量の経験値を与えて Lv.1 -> Lv.3 へレベルアップ
+  const expToLv3 = PartyAggregate.calculateNextExp(1) + PartyAggregate.calculateNextExp(2) + 50;
+  const levelUpResult = testLevelParty.addExpAndMoney(expToLv3, 100);
+
+  assert(levelUpResult.leveledUp.length === 2, `Then: Character leveled up twice (actual: ${levelUpResult.leveledUp.length})`);
+  assert(testLevelParty.activeMembers[0].level === 3, `Then: Tanjiro reached Lv.3 (actual: ${testLevelParty.activeMembers[0].level})`);
+  assert(levelUpResult.detailedLevelUps.length === 1, 'Then: detailedLevelUps record is generated');
+
+  const detailedRecord = levelUpResult.detailedLevelUps[0];
+  assert(detailedRecord.oldLevel === 1 && detailedRecord.newLevel === 3, 'Then: Record accurately captures oldLevel 1 and newLevel 3');
+  assert(detailedRecord.statGains.hp > 0, `Then: Stat gains (HP) recorded (+${detailedRecord.statGains.hp})`);
+  assert(detailedRecord.statGains.bp > 0, `Then: Stat gains (BP) recorded (+${detailedRecord.statGains.bp})`);
+  assert(detailedRecord.statGains.attack > 0, `Then: Stat gains (ATK) recorded (+${detailedRecord.statGains.attack})`);
+  assert(detailedRecord.statGains.defense > 0, `Then: Stat gains (DEF) recorded (+${detailedRecord.statGains.defense})`);
+  assert(detailedRecord.statGains.speed >= 2, `Then: Stat gains (SPD) recorded (+${detailedRecord.statGains.speed})`);
+
+  // 新呼吸会得の検証
+  assert(detailedRecord.newSkills.length >= 1, `Then: New breathing technique captured in newSkills (${detailedRecord.newSkills.length} skills)`);
+  assert(detailedRecord.newSkills.some(s => s.id === 'sk_water_1'), 'Then: Water Breathing Form 1 (水面斬り) was learned');
+
+  // 3. VictoryLevelUpModal のレンダリング検証（新呼吸会得時の派手な表示: 紋章・技名・ルビ・BP・台詞）
+  const flashyModalHtml = ReactDOMServer.renderToString(
+    React.createElement(VictoryLevelUpModal, {
+      levelUps: levelUpResult.detailedLevelUps,
+      expGained: expToLv3,
+      moneyGained: 100,
+      isOpen: true,
+      onClose: () => {}
+    })
+  );
+  assert(flashyModalHtml.includes('新 呼 吸 開 眼'), 'Then: Flashy modal header 【新呼吸開眼！！】 is rendered');
+  assert(flashyModalHtml.includes('水面斬り'), 'Then: Learned skill name (水面斬り) is rendered in spotlight card');
+  assert(flashyModalHtml.includes('消費呼吸力'), 'Then: Technique BP attribute is rendered');
+  assert(flashyModalHtml.includes('基礎能力の上昇値'), 'Then: Stat increases grid is rendered');
+
+  // 4. 新呼吸を覚えない通常レベルアップ時のレンダリング検証
+  const normalLevelParty = new PartyAggregate({
+    ...tanjiro!,
+    level: 3,
+    exp: 0,
+    skills: testLevelParty.activeMembers[0].skills,
+    nextExp: PartyAggregate.calculateNextExp(3)
+  });
+  const expToLv4 = PartyAggregate.calculateNextExp(3) + 20;
+  const normalLevelResult = normalLevelParty.addExpAndMoney(expToLv4, 50);
+  assert(normalLevelResult.detailedLevelUps[0].newSkills.length === 0, 'Then: Lv.4 Tanjiro does not learn a new breath (standard stat growth)');
+
+  const normalModalHtml = ReactDOMServer.renderToString(
+    React.createElement(VictoryLevelUpModal, {
+      levelUps: normalLevelResult.detailedLevelUps,
+      expGained: expToLv4,
+      moneyGained: 50,
+      isOpen: true,
+      onClose: () => {}
+    })
+  );
+  assert(normalModalHtml.includes('レ ベ ル ア ッ プ'), 'Then: Standard level up header 【レベルアップ！！】 is rendered');
+  assert(!normalModalHtml.includes('新 呼 吸 開 眼'), 'Then: Flashy breath awakening is NOT rendered when no skills learned');
+
+  // Scenario 15: えとくした呼吸の確認と未取得呼吸のシークレット数量（宿・編成・図鑑）
+  console.log('\nScenario: Inspecting learned breathing techniques and unacquired secret quantity in Inn & Zukan');
+  const { getCharacterBreathingProgression } = await import('../src/domain/services/SkillProgressionService.ts');
+  const { BreathingProgressView } = await import('../src/components/BreathingProgressView.tsx');
+  const { ZukanScreen } = await import('../src/components/ZukanScreen.tsx');
+
+  // GIVEN: Tanjiro at Lv.3 (learned initial breathing technique, higher forms still locked)
+  const tanjiroAtLv3 = {
+    ...tanjiro!,
+    level: 3,
+    skills: tanjiro!.skills // has starter skills and 水面斬り
+  };
+
+  // WHEN: Calculating breathing progression
+  const progression = getCharacterBreathingProgression(tanjiroAtLv3);
+
+  // THEN: Verify accurate learned and secret unlearned counts
+  assert(progression.learnedBreathCount >= 1, `Then: Tanjiro has learned ${progression.learnedBreathCount} breathing techniques`);
+  assert(progression.unlearnedBreathCount >= 4, `Then: Unlearned secret count is quantified (remaining: ${progression.unlearnedBreathCount} secret arts)`);
+  assert(
+    progression.totalBreathCount === progression.learnedBreathCount + progression.unlearnedBreathCount,
+    `Then: Total breath count (${progression.totalBreathCount}) equals learned + unlearned secrets`
+  );
+
+  // THEN: Verify unlearned secrets are properly masked and ordered by level requirement
+  assert(progression.unlearnedSecrets.length === progression.unlearnedBreathCount, 'Then: Unlearned secret entries match count');
+  for (let i = 0; i < progression.unlearnedSecrets.length - 1; i++) {
+    assert(
+      progression.unlearnedSecrets[i].level <= progression.unlearnedSecrets[i + 1].level,
+      `Then: Secret levels are ordered ascending (Lv.${progression.unlearnedSecrets[i].level} <= Lv.${progression.unlearnedSecrets[i + 1].level})`
+    );
+  }
+  const ultimateSecret = progression.unlearnedSecrets.find(s => s.isUltimate);
+  assert(ultimateSecret !== undefined && ultimateSecret.level >= 30, 'Then: Ultimate technique (ヒノカミ神楽 日暈の龍 頭舞い) is masked as secret ultimate art');
+
+  // THEN: BreathingProgressView renders both learned skills and mysterious secret placeholders
+  const progressHtml = ReactDOMServer.renderToString(
+    React.createElement(BreathingProgressView, { character: tanjiroAtLv3 })
+  );
+  assert(progressHtml.includes('水面斬り'), 'Then: BreathingProgressView displays learned technique name (水面斬り)');
+  assert(progressHtml.includes('？？？？？？'), 'Then: BreathingProgressView masks unlearned techniques as ？？？？？？');
+  assert(progressHtml.includes('未解禁シークレット'), 'Then: BreathingProgressView displays secret remaining quantity');
+  assert(progressHtml.includes('会得進捗'), 'Then: BreathingProgressView displays progress header');
+
+  // THEN: ZukanScreen renders BreathingProgressView for encountered characters
+  const zukanHtml = ReactDOMServer.renderToString(
+    React.createElement(ZukanScreen, {
+      catalog,
+      partyRoster: [tanjiroAtLv3],
+      partyRosterIds: new Set([tanjiroAtLv3.id]),
+      encounteredIds: new Set([tanjiroAtLv3.id]),
+      onBack: () => {}
+    })
+  );
+  assert(zukanHtml.includes('会得進捗'), 'Then: ZukanScreen embeds BreathingProgressView in character profile');
+  assert(zukanHtml.includes('？？？？？？'), 'Then: ZukanScreen shows secret unlearned breathing placeholders');
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

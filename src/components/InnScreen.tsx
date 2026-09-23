@@ -15,7 +15,9 @@ import { FuriganaText } from './Ruby.tsx';
 import { PartyFormationModal } from './PartyFormationModal.tsx';
 import { HashiraTrainingModal } from './HashiraTrainingModal.tsx';
 import { RecruitmentTrialModal } from './RecruitmentTrialModal.tsx';
-import { Bed, UserPlus, Users, ShoppingBag, CheckCircle, ArrowRight, ArrowRightLeft, Sparkles, GripVertical, Swords, HelpCircle } from 'lucide-react';
+import { BreathingDetailModal } from './BreathingDetailModal.tsx';
+import { getCharacterBreathingProgression } from '../domain/services/SkillProgressionService.ts';
+import { Bed, UserPlus, Users, ShoppingBag, CheckCircle, ArrowRight, ArrowRightLeft, Sparkles, GripVertical, Swords, HelpCircle, Wind } from 'lucide-react';
 
 interface InnScreenProps {
   party: PartyAggregate;
@@ -64,6 +66,7 @@ export const InnScreen: React.FC<InnScreenProps> = ({
     candidate: Character;
     cost: number;
   } | null>(null);
+  const [inspectingBreathingChar, setInspectingBreathingChar] = useState<Character | null>(null);
 
   // Shop items for sale (自動適用アイテム)
   const SHOP_ITEMS: Item[] = [
@@ -260,11 +263,20 @@ export const InnScreen: React.FC<InnScreenProps> = ({
               </p>
               <div className="flex justify-center gap-4 my-3">
                 {party.activeMembers.map(m => (
-                  <div key={m.id} className="flex flex-col items-center">
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      SoundEngine.playConfirm();
+                      setInspectingBreathingChar(m);
+                    }}
+                    className="flex flex-col items-center p-1.5 rounded hover:bg-slate-800/80 transition-colors border border-transparent hover:border-slate-700"
+                    title="クリックで会得呼吸と未解禁シークレットを確認"
+                  >
                     <PixelSprite character={m} size={48} />
-                    <span className="text-[10px] text-amber-200 mt-1 truncate max-w-[64px]">{m.name}</span>
+                    <span className="text-[10px] text-amber-200 mt-1 truncate max-w-[64px] font-bold">{m.name}</span>
                     <span className="text-[9px] text-emerald-400 font-mono">HP {m.stats.hp}/{m.stats.maxHp}</span>
-                  </div>
+                    <span className="text-[8px] text-cyan-300 font-mono mt-0.5">呼吸: {getCharacterBreathingProgression(m).learnedBreathCount}/{getCharacterBreathingProgression(m).totalBreathCount}型</span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -326,6 +338,18 @@ export const InnScreen: React.FC<InnScreenProps> = ({
                         <div>攻: {candidate.stats.attack}</div>
                         <div>防: {candidate.stats.defense}</div>
                       </div>
+
+                      <button
+                        onClick={() => {
+                          SoundEngine.playConfirm();
+                          setInspectingBreathingChar(candidate);
+                        }}
+                        className="w-full mb-2 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-slate-700 hover:border-cyan-400 transition-colors"
+                        title="会得呼吸と未解禁シークレットを確認"
+                      >
+                        <Wind className="w-3 h-3 text-cyan-300" />
+                        <span>呼吸・技確認 ({getCharacterBreathingProgression(candidate).learnedBreathCount}/{getCharacterBreathingProgression(candidate).totalBreathCount}型)</span>
+                      </button>
                     </div>
 
                     {isHashira ? (
@@ -545,6 +569,20 @@ export const InnScreen: React.FC<InnScreenProps> = ({
                         <span className="text-xs font-bold text-white mt-1 truncate max-w-full">{member.name}</span>
                         <span className="text-[10px] text-amber-300">Lv.{member.level} / {member.rank}</span>
                         <span className="text-[9px] text-cyan-300 truncate max-w-full">{member.breathStyle}</span>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            SoundEngine.playConfirm();
+                            setInspectingBreathingChar(member);
+                          }}
+                          className="mt-1 text-[9px] px-1.5 py-0.5 rounded font-bold bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-700/80 text-cyan-200 flex items-center justify-center gap-1 transition-colors touch-manipulation w-full"
+                          title="会得呼吸と未解禁シークレットを確認"
+                        >
+                          <Wind className="w-2.5 h-2.5 text-cyan-300" />
+                          <span>呼吸: {getCharacterBreathingProgression(member).learnedBreathCount}/{getCharacterBreathingProgression(member).totalBreathCount}型</span>
+                        </button>
+
                         <div className={`mt-1 text-[9px] px-1.5 py-0.5 rounded border flex items-center gap-1 transition-colors ${
                           isSelected
                             ? 'bg-amber-500 text-black border-amber-300 font-bold'
@@ -648,6 +686,19 @@ export const InnScreen: React.FC<InnScreenProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          SoundEngine.playConfirm();
+                          setInspectingBreathingChar(member);
+                        }}
+                        className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-slate-600 hover:border-cyan-400 flex items-center gap-0.5 transition-colors touch-manipulation"
+                        title="会得呼吸と未解禁シークレットを確認"
+                      >
+                        <Wind className="w-2.5 h-2.5 text-cyan-300" />
+                        <span>{getCharacterBreathingProgression(member).learnedBreathCount}/{getCharacterBreathingProgression(member).totalBreathCount}型</span>
+                      </button>
+
                       {isActive ? (
                         <span className="text-[10px] px-2 py-0.5 bg-indigo-600 rounded text-white font-bold">
                           枠 {activeIdx + 1}
@@ -773,6 +824,15 @@ export const InnScreen: React.FC<InnScreenProps> = ({
           isOpen={!!activeRecruitTrial}
           onClose={() => setActiveRecruitTrial(null)}
           onSuccessRecruit={(char) => handleSuccessRecruitTrial(char)}
+        />
+      )}
+
+      {/* Breathing Technique Progress & Secrets Inspection Modal */}
+      {inspectingBreathingChar && (
+        <BreathingDetailModal
+          character={inspectingBreathingChar}
+          isOpen={!!inspectingBreathingChar}
+          onClose={() => setInspectingBreathingChar(null)}
         />
       )}
     </div>

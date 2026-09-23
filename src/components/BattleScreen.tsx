@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Character, Skill, Item, StoryChapter } from '../domain/models/types.ts';
-import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
+import { PartyAggregate, DetailedLevelUp } from '../domain/aggregates/PartyAggregate.ts';
 import { calculateDamage, isCriticalHit } from '../domain/services/DamageCalculator.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
@@ -13,6 +13,7 @@ import { isUltimateSkill } from '../domain/services/SkillProgressionService.ts';
 import { EnemyGroupService } from '../domain/services/EnemyGroupService.ts';
 import { AutoItemService } from '../domain/services/AutoItemService.ts';
 import { UltimateCutIn } from './UltimateCutIn.tsx';
+import { VictoryLevelUpModal } from './VictoryLevelUpModal.tsx';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
 import { Swords, Wind, Sparkles, Package, LogOut, FastForward, Play, RefreshCw, Flame, Target, Zap } from 'lucide-react';
@@ -107,6 +108,21 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const [activeCutIn, setActiveCutIn] = useState<{ character: Character; skill: Skill } | null>(null);
   const cutInResolverRef = useRef<(() => void) | null>(null);
+
+  // Victory Level-Up & Flashy Breathing Technique Modal State
+  const [pendingVictoryLevelUps, setPendingVictoryLevelUps] = useState<{
+    levelUps: DetailedLevelUp[];
+    expReward: number;
+    moneyReward: number;
+    leveledUp: { name: string; newLevel: number }[];
+  } | null>(null);
+
+  const handleCloseVictoryModal = () => {
+    if (!pendingVictoryLevelUps) return;
+    const { expReward, moneyReward, leveledUp } = pendingVictoryLevelUps;
+    setPendingVictoryLevelUps(null);
+    onVictory(expReward, moneyReward, leveledUp);
+  };
 
   // Predicted speed rankings for living combatants
   const speedRankings = useMemo(() => {
@@ -212,6 +228,20 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       if (healedAny) {
         addLog(`【藤の花の加護】隊士たちの傷が癒え、呼吸力(BP)が回復した！`);
         await delay(300);
+      }
+    }
+
+    // Auto Item Application: Check for low BP members at round start
+    for (const m of party.activeMembers) {
+      if (m.stats.hp > 0 && m.stats.bp <= Math.max(15, Math.round(m.stats.maxBp * 0.35))) {
+        const autoBp = AutoItemService.checkAutoBpReplenish(party, m);
+        if (autoBp) {
+          SoundEngine.playHeal();
+          addLog(autoBp.message!);
+          setPartyDamageNumber({ value: autoBp.recoveredAmount || 25, isHeal: true });
+          await delay(350);
+          setPartyDamageNumber(null);
+        }
       }
     }
 
@@ -341,7 +371,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             if (autoBp) {
               SoundEngine.playHeal();
               addLog(autoBp.message!);
-              await delay(300);
+              setPartyDamageNumber({ value: autoBp.recoveredAmount || 25, isHeal: true });
+              await delay(350);
+              setPartyDamageNumber(null);
             }
           }
 
@@ -352,6 +384,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           }
 
           actor.stats.bp -= skill.bpCost;
+
+          // Auto Item Application check: if BP dropped to critical after technique, auto-replenish if items available
+          if (actor.stats.bp <= Math.max(15, Math.round(actor.stats.maxBp * 0.35))) {
+            const autoBpAfter = AutoItemService.checkAutoBpReplenish(party, actor);
+            if (autoBpAfter) {
+              SoundEngine.playHeal();
+              addLog(autoBpAfter.message!);
+              setPartyDamageNumber({ value: autoBpAfter.recoveredAmount || 25, isHeal: true });
+              await delay(350);
+              setPartyDamageNumber(null);
+            }
+          }
 
           // Ultimate cut-in strictly for the character's strongest breathing technique
           if (isUltimateSkill(actor, skill)) {
@@ -609,11 +653,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       const moneyReward = Math.round(
         currentEnemies.reduce((sum, e) => sum + (e.level * 22 + 15), 0) + (isBoss ? 400 : 60)
       );
-      const { leveledUp, learnedSkills } = party.addExpAndMoney(expReward, moneyReward);
+      const { leveledUp, learnedSkills, detailedLevelUps } = party.addExpAndMoney(expReward, moneyReward);
 
       addLog(`経験値 ${expReward} と ${moneyReward} 銭 を かくとくした！`);
       if (leveledUp.length > 0) {
-        SoundEngine.playLevelUp();
         for (const l of leveledUp) {
           addLog(`★ ${l.name} は レベル ${l.newLevel} に あがった！ 全能力が向上！`);
         }
@@ -630,6 +673,19 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         const lead = nonLeveled[0];
         const remainingExp = Math.max(0, lead.nextExp - lead.exp);
         addLog(`【鍛錬進捗】${lead.name}: つぎのレベルまで あと ${remainingExp} 経験値（あと1〜2勝でLv.UP!）`);
+      }
+
+      // If anyone leveled up, display the dedicated Level-Up & Flashy Breathing Technique Modal!
+      if (detailedLevelUps && detailedLevelUps.length > 0) {
+        await delay(600);
+        setIsProcessingTurn(false);
+        setPendingVictoryLevelUps({
+          levelUps: detailedLevelUps,
+          expReward,
+          moneyReward,
+          leveledUp
+        });
+        return;
       }
 
       await delay(1200);
@@ -695,10 +751,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   useEffect(() => {
     if (isAutoBattle && !isProcessingTurn && memberActions.length === 0) {
       const targetIdx = getActiveTargetIndex();
+      const recoverableBp = AutoItemService.getTotalRecoverableBp(party);
       const autoActions: QueuedAction[] = party.activeMembers
         .filter(m => m.stats.hp > 0)
         .map(m => {
-          if (m.skills.length > 0 && m.stats.bp >= m.skills[0].bpCost && Math.random() < 0.7) {
+          if (m.skills.length > 0 && (m.stats.bp + recoverableBp) >= m.skills[0].bpCost && Math.random() * 0.7) {
             return { member: m, type: 'skill' as const, skill: m.skills[0], targetEnemyIndex: targetIdx };
           }
           return { member: m, type: 'attack' as const, targetEnemyIndex: targetIdx };
@@ -1092,7 +1149,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               </div>
 
               {sortedCurrentMemberSkills.map((sk, idx) => {
-                const canUse = currentMember.stats.bp >= sk.bpCost;
+                const totalRecoverableBp = AutoItemService.getTotalRecoverableBp(party);
+                const hasDirectBp = currentMember.stats.bp >= sk.bpCost;
+                const canUseWithAutoBp = !hasDirectBp && (currentMember.stats.bp + totalRecoverableBp >= sk.bpCost);
+                const canUse = hasDirectBp || canUseWithAutoBp;
                 const isUltimate = isUltimateSkill(currentMember, sk);
                 const isAllTarget = sk.target === 'all';
 
@@ -1100,12 +1160,23 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   <button
                     key={sk.id}
                     disabled={!canUse}
-                    onClick={() => queueAction({
-                      member: currentMember,
-                      type: 'skill',
-                      skill: sk,
-                      targetEnemyIndex: getActiveTargetIndex()
-                    })}
+                    onClick={() => {
+                      if (canUseWithAutoBp) {
+                        const autoBp = AutoItemService.checkAutoBpReplenish(party, currentMember, sk.bpCost);
+                        if (autoBp) {
+                          SoundEngine.playHeal();
+                          addLog(autoBp.message!);
+                          setPartyDamageNumber({ value: autoBp.recoveredAmount || 25, isHeal: true });
+                          setTimeout(() => setPartyDamageNumber(null), 800);
+                        }
+                      }
+                      queueAction({
+                        member: currentMember,
+                        type: 'skill',
+                        skill: sk,
+                        targetEnemyIndex: getActiveTargetIndex()
+                      });
+                    }}
                     className={`flex items-center justify-between p-2 rounded border text-left text-xs transition-all touch-manipulation ${
                       !canUse
                         ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed opacity-60'
@@ -1147,6 +1218,12 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                           </span>
                         )}
 
+                        {canUseWithAutoBp && (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-600 text-white rounded animate-pulse flex items-center gap-0.5">
+                            🍙 おにぎり自動回復
+                          </span>
+                        )}
+
                         <span className={`font-bold ${isUltimate ? 'text-amber-300' : 'text-cyan-300'}`}>
                           {sk.name}
                         </span>
@@ -1156,10 +1233,21 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">{sk.description}</div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="inline-block px-1.5 py-0.5 bg-slate-950/80 rounded border border-slate-700 text-[10px] font-mono text-amber-300 font-bold">
+                    <div className="text-right shrink-0 flex flex-col items-end">
+                      <span className={`inline-block px-1.5 py-0.5 bg-slate-950/80 rounded border text-[10px] font-mono font-bold ${
+                        hasDirectBp
+                          ? 'border-slate-700 text-amber-300'
+                          : canUseWithAutoBp
+                          ? 'border-emerald-500 text-emerald-300 ring-1 ring-emerald-400'
+                          : 'border-slate-800 text-slate-500'
+                      }`}>
                         {sk.bpCost}BP
                       </span>
+                      {canUseWithAutoBp && (
+                        <span className="text-[9px] text-emerald-400 font-bold mt-0.5">
+                          自動回復可
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
@@ -1197,7 +1285,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                   .map(it => (
                     <div
                       key={it.id}
-                      className="flex items-center justify-between p-2 rounded border border-slate-700 bg-slate-800/90 text-xs"
+                      className="flex items-center justify-between p-2 rounded border border-slate-700 bg-slate-800/90 text-xs hover:border-emerald-500/60 transition-colors"
                     >
                       <div className="flex-1 pr-2">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1208,7 +1296,29 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                         </div>
                         <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{it.description}</div>
                       </div>
-                      <span className="text-xs text-amber-300 font-mono shrink-0 ml-1 font-bold">x{it.count}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-amber-300 font-mono font-bold">x{it.count}</span>
+                        {it.type !== 'buff' && (
+                          <button
+                            onClick={() => {
+                              SoundEngine.playConfirm();
+                              const res = party.useItem(it.id, party.activeMembers.indexOf(currentMember));
+                              if (res.success) {
+                                SoundEngine.playHeal();
+                                addLog(res.message);
+                                setPartyDamageNumber({ value: it.value, isHeal: true });
+                                setTimeout(() => setPartyDamageNumber(null), 800);
+                              } else {
+                                SoundEngine.playCancel();
+                                addLog(res.message);
+                              }
+                            }}
+                            className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white rounded text-[10px] font-bold border border-emerald-400 shadow touch-manipulation"
+                          >
+                            使う
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))
               )}
@@ -1250,6 +1360,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           character={activeCutIn.character}
           skill={activeCutIn.skill}
           onComplete={handleCutInComplete}
+        />
+      )}
+
+      {/* Victory Level Up & Flashy Breathing Technique Modal */}
+      {pendingVictoryLevelUps && (
+        <VictoryLevelUpModal
+          levelUps={pendingVictoryLevelUps.levelUps}
+          expGained={pendingVictoryLevelUps.expReward}
+          moneyGained={pendingVictoryLevelUps.moneyReward}
+          isOpen={!!pendingVictoryLevelUps}
+          onClose={handleCloseVictoryModal}
         />
       )}
     </div>

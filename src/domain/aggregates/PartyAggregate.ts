@@ -6,6 +6,21 @@
 import { Character, Item, Skill } from '../models/types.ts';
 import { checkNewLearnedSkills, getSkillsForLevel } from '../services/SkillProgressionService.ts';
 
+export interface DetailedLevelUp {
+  character: Character;
+  name: string;
+  oldLevel: number;
+  newLevel: number;
+  statGains: {
+    hp: number;
+    bp: number;
+    attack: number;
+    defense: number;
+    speed: number;
+  };
+  newSkills: Skill[];
+}
+
 export class PartyAggregate {
   public activeMembers: Character[] = [];
   public roster: Character[] = [];
@@ -160,16 +175,23 @@ export class PartyAggregate {
   public addExpAndMoney(exp: number, gold: number): {
     leveledUp: { name: string; newLevel: number }[];
     learnedSkills: { characterName: string; skill: Skill }[];
+    detailedLevelUps: DetailedLevelUp[];
   } {
     this.money += gold;
     const leveledUp: { name: string; newLevel: number }[] = [];
     const learnedSkills: { characterName: string; skill: Skill }[] = [];
+    const detailedLevelUps: DetailedLevelUp[] = [];
 
     for (const member of this.activeMembers) {
       if (member.stats.hp <= 0) continue; // collapsed characters don't gain exp unless revived
       member.exp += exp;
 
       const initialLevel = member.level;
+      let totalHpUp = 0;
+      let totalBpUp = 0;
+      let totalAtkUp = 0;
+      let totalDefUp = 0;
+      let totalSpeedUp = 0;
 
       while (member.exp >= member.nextExp) {
         member.exp -= member.nextExp;
@@ -190,22 +212,45 @@ export class PartyAggregate {
         member.stats.defense += defUp;
         member.stats.speed += 1;
 
+        totalHpUp += hpUp;
+        totalBpUp += bpUp;
+        totalAtkUp += atkUp;
+        totalDefUp += defUp;
+        totalSpeedUp += 1;
+
         leveledUp.push({ name: member.name, newLevel: member.level });
       }
 
       // Check if character unlocked new breathing techniques / skills through level-up!
+      const memberNewSkills: Skill[] = [];
       if (member.level > initialLevel) {
         const newSkills = checkNewLearnedSkills(member, initialLevel, member.level);
         for (const skill of newSkills) {
           if (!member.skills.some(s => s.id === skill.id)) {
             member.skills.push(skill);
             learnedSkills.push({ characterName: member.name, skill });
+            memberNewSkills.push(skill);
           }
         }
+
+        detailedLevelUps.push({
+          character: member,
+          name: member.name,
+          oldLevel: initialLevel,
+          newLevel: member.level,
+          statGains: {
+            hp: totalHpUp,
+            bp: totalBpUp,
+            attack: totalAtkUp,
+            defense: totalDefUp,
+            speed: totalSpeedUp,
+          },
+          newSkills: memberNewSkills,
+        });
       }
     }
 
-    return { leveledUp, learnedSkills };
+    return { leveledUp, learnedSkills, detailedLevelUps };
   }
 
   /**

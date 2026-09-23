@@ -138,6 +138,31 @@ class RetroAudioSynthesizer {
     notes.forEach(n => this.playTone(n.f, 'square', n.d, n.t, 0.18));
   }
 
+  // Flashy New Breathing Technique Awakening Fanfare (派手な新呼吸会得ファンファーレ)
+  public playNewSkillFanfare() {
+    if (this.isMuted) return;
+    // Layer 1: Breath energy sweep
+    this.playBreathSkill();
+    // Layer 2: Triumphant brass/lead fanfare arpeggio
+    const notes = [
+      { f: 523, d: 0.12, t: 0.1 },   // C5
+      { f: 659, d: 0.12, t: 0.22 },  // E5
+      { f: 784, d: 0.15, t: 0.34 },  // G5
+      { f: 1046, d: 0.22, t: 0.48 }, // C6
+      { f: 880, d: 0.18, t: 0.7 },   // A5
+      { f: 1046, d: 0.18, t: 0.88 }, // C6
+      { f: 1175, d: 0.22, t: 1.06 }, // D6
+      { f: 1318, d: 0.6, t: 1.28 }   // E6
+    ];
+    notes.forEach(n => this.playTone(n.f, 'square', n.d, n.t, 0.24));
+    // Layer 3: Sparkling chime accents
+    const chimes = [
+      { f: 1567, d: 0.1, t: 1.3 },
+      { f: 2093, d: 0.35, t: 1.45 }
+    ];
+    chimes.forEach(c => this.playTone(c.f, 'triangle', c.d, c.t, 0.2));
+  }
+
   // Victory fanfare after battle
   public playVictory() {
     const notes = [

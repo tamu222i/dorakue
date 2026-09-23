@@ -8,6 +8,8 @@ import { PartyAggregate } from '../domain/aggregates/PartyAggregate.ts';
 import { Character } from '../domain/models/types.ts';
 import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
+import { BreathingDetailModal } from './BreathingDetailModal.tsx';
+import { getCharacterBreathingProgression } from '../domain/services/SkillProgressionService.ts';
 import {
   Users,
   UserPlus,
@@ -17,7 +19,8 @@ import {
   Search,
   Sparkles,
   Shield,
-  GripVertical
+  GripVertical,
+  Wind
 } from 'lucide-react';
 
 interface PartyFormationModalProps {
@@ -53,6 +56,7 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
   const [activeTab, setActiveTab] = useState<FormationTab>('roster');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [inspectingBreathingChar, setInspectingBreathingChar] = useState<Character | null>(null);
   const [message, setMessage] = useState<string>(
     '【1タップ目で選択】→【2タップ目で入れ替え】できます。ドラッグ＆ドロップでも入れ替え可能です！'
   );
@@ -390,6 +394,19 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
                           <div>防: <span className="text-blue-400">{member.stats.defense}</span></div>
                         </div>
 
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            SoundEngine.playConfirm();
+                            setInspectingBreathingChar(member);
+                          }}
+                          className="mt-1.5 w-full text-[9px] py-0.5 rounded font-bold bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700/80 text-cyan-200 flex items-center justify-center gap-1 transition-colors touch-manipulation"
+                          title="会得呼吸と未解禁シークレットを確認"
+                        >
+                          <Wind className="w-2.5 h-2.5 text-cyan-300" />
+                          <span>呼吸確認 ({getCharacterBreathingProgression(member).learnedBreathCount}/{getCharacterBreathingProgression(member).totalBreathCount}型)</span>
+                        </button>
+
                         <div className={`mt-1.5 w-full text-[10px] py-0.5 rounded font-bold flex items-center justify-center gap-1 border transition-colors ${
                           isSelected
                             ? 'bg-amber-500 text-black border-amber-300'
@@ -579,6 +596,19 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
                     </div>
 
                     <div className="shrink-0 flex flex-col items-end gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          SoundEngine.playConfirm();
+                          setInspectingBreathingChar(character);
+                        }}
+                        className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-slate-800 hover:bg-slate-700 text-cyan-200 border border-slate-600 hover:border-cyan-400 flex items-center gap-1 transition-colors touch-manipulation"
+                        title="会得呼吸と未解禁シークレットを確認"
+                      >
+                        <Wind className="w-2.5 h-2.5 text-cyan-300" />
+                        <span>呼吸 {getCharacterBreathingProgression(character).learnedBreathCount}/{getCharacterBreathingProgression(character).totalBreathCount}型</span>
+                      </button>
+
                       {isActive ? (
                         <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-indigo-600 text-white flex items-center gap-1">
                           <Check className="w-3 h-3" />
@@ -627,6 +657,15 @@ export const PartyFormationModal: React.FC<PartyFormationModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Breathing Technique Progress & Secrets Modal */}
+      {inspectingBreathingChar && (
+        <BreathingDetailModal
+          character={inspectingBreathingChar}
+          isOpen={!!inspectingBreathingChar}
+          onClose={() => setInspectingBreathingChar(null)}
+        />
+      )}
     </div>
   );
 };

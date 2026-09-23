@@ -71,30 +71,74 @@ export class AutoItemService {
   }
 
   /**
-   * Check and auto-replenish BP if a member needs BP for breathing techniques or BP <= 15.
+   * Calculate total BP recoverable from all available heal_bp items in party inventory.
+   */
+  public static getTotalRecoverableBp(party: PartyAggregate): number {
+    return party.inventory
+      .filter(i => i.type === 'heal_bp' && i.count > 0)
+      .reduce((sum, i) => sum + i.value * i.count, 0);
+  }
+
+  /**
+   * Check if a member can afford a skill either directly or with auto BP items.
+   */
+  public static canAffordSkillWithAutoItems(party: PartyAggregate, member: Character, bpCost: number): boolean {
+    if (member.stats.bp >= bpCost) return true;
+    const availableRecoverable = AutoItemService.getTotalRecoverableBp(party);
+    return (member.stats.bp + availableRecoverable) >= bpCost;
+  }
+
+  /**
+   * Check and auto-replenish BP if a member needs BP for breathing techniques or BP is low (<= 35% or <= 15).
    * Automatically triggered from inventory without requiring turn consumption!
+   * Consumes sufficient BP items to meet requiredBp if specified.
    */
   public static checkAutoBpReplenish(party: PartyAggregate, member: Character, requiredBp?: number): AutoItemResult | null {
     if (member.stats.hp <= 0) return null;
 
-    const isLow = member.stats.bp <= 15;
+    const lowThreshold = Math.max(15, Math.round(member.stats.maxBp * 0.35));
+    const isLow = member.stats.bp <= lowThreshold;
     const isNeeded = requiredBp !== undefined && member.stats.bp < requiredBp;
     if (!isLow && !isNeeded) return null;
 
-    const bpItem = party.inventory.find(i => i.type === 'heal_bp' && i.count > 0);
-    if (!bpItem) return null;
+    let totalRecovered = 0;
+    let usedCount = 0;
+    let lastUsedItem: Item | null = null;
 
-    bpItem.count--;
-    const bpVal = Math.min(member.stats.maxBp - member.stats.bp, bpItem.value);
-    member.stats.bp += bpVal;
+    while (true) {
+      const needMore = requiredBp !== undefined
+        ? member.stats.bp < requiredBp
+        : member.stats.bp <= lowThreshold;
+      if (!needMore) break;
+      if (member.stats.bp >= member.stats.maxBp) break;
+
+      const bpItem = party.inventory.find(i => i.type === 'heal_bp' && i.count > 0);
+      if (!bpItem) break;
+
+      bpItem.count--;
+      usedCount++;
+      lastUsedItem = bpItem;
+      const bpVal = Math.min(member.stats.maxBp - member.stats.bp, bpItem.value);
+      member.stats.bp += bpVal;
+      totalRecovered += bpVal;
+
+      // If just recovering from low BP without specific requiredBp, 1 item is enough
+      if (requiredBp === undefined) break;
+    }
+
+    if (usedCount === 0 || !lastUsedItem) return null;
+
+    const countDesc = usedCount > 1
+      ? `（${usedCount}個使用・残り:${lastUsedItem.count}個）`
+      : `（残り:${lastUsedItem.count}個）`;
 
     return {
       triggered: true,
-      item: bpItem,
+      item: lastUsedItem,
       target: member,
       effectType: 'heal_bp',
-      recoveredAmount: bpVal,
-      message: `【自動適用・${bpItem.name}】${member.name}は特製おにぎりを素早く食し、呼吸力(BP)が ${bpVal} 回復！（残り:${bpItem.count}個）`
+      recoveredAmount: totalRecovered,
+      message: `【自動適用・${lastUsedItem.name}】${member.name}は${lastUsedItem.name}で全集中の呼吸を整え、呼吸力(BP)が ${totalRecovered} 回復！${countDesc}`
     };
   }
 

@@ -9,10 +9,12 @@ import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
+import { BreathingProgressView } from './BreathingProgressView.tsx';
 import { Search, ArrowLeft, Filter, Sparkles, Book, Eye, EyeOff, Users } from 'lucide-react';
 
 interface ZukanScreenProps {
   catalog: Character[];
+  partyRoster?: Character[];
   partyRosterIds: Set<string>;
   encounteredIds: Set<string>;
   onBack: () => void;
@@ -20,6 +22,7 @@ interface ZukanScreenProps {
 
 export const ZukanScreen: React.FC<ZukanScreenProps> = ({
   catalog,
+  partyRoster,
   partyRosterIds,
   encounteredIds,
   onBack
@@ -88,6 +91,7 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
 
   const isSelectedEncountered = encounteredIds.has(selectedCharacter.id);
   const isSelectedRecruited = partyRosterIds.has(selectedCharacter.id);
+  const liveCharacter = partyRoster?.find(m => m.id === selectedCharacter.id) || selectedCharacter;
 
   return (
     <div className="w-full max-w-5xl mx-auto flex flex-col gap-3 p-2 select-none">
@@ -343,44 +347,37 @@ export const ZukanScreen: React.FC<ZukanScreenProps> = ({
             <div>
               {/* Encountered Character Profile */}
               <div className="flex flex-col items-center p-3 bg-slate-900 rounded border border-slate-800 mb-3">
-                <PixelSprite character={selectedCharacter} size={112} className="mb-2" />
-                <div className="font-bold text-sm text-amber-300">{selectedCharacter.name}</div>
-                <div className="text-xs text-slate-300 font-bold">{selectedCharacter.title}</div>
+                <PixelSprite character={liveCharacter} size={112} className="mb-2" />
+                <div className="font-bold text-sm text-amber-300">{liveCharacter.name}</div>
+                <div className="text-xs text-slate-300 font-bold">{liveCharacter.title}</div>
                 <div className="text-[11px] text-cyan-300 mt-1">
-                  【{selectedCharacter.rank}】 / 呼吸・術: {selectedCharacter.breathStyle}
+                  【{liveCharacter.rank}】 / 呼吸・術: {liveCharacter.breathStyle} / Lv.{liveCharacter.level}
                 </div>
               </div>
 
               {/* Lore Box */}
               <div className="text-xs text-slate-300 leading-relaxed bg-slate-950/70 p-2.5 rounded border border-slate-800 mb-3">
-                {selectedCharacter.lore}
+                {liveCharacter.lore}
               </div>
 
               {/* Base Stats */}
               <div className="bg-slate-900 p-2 rounded border border-slate-800 text-xs font-mono mb-3">
-                <div className="text-[10px] text-amber-400 font-bold mb-1">【能力値】</div>
+                <div className="text-[10px] text-amber-400 font-bold mb-1">
+                  【能力値{isSelectedRecruited ? '（現在鍛錬中）' : ''}】
+                </div>
                 <div className="grid grid-cols-2 gap-1 text-slate-300 text-[11px]">
-                  <div>HP: {selectedCharacter.stats.maxHp}</div>
-                  <div>BP: {selectedCharacter.stats.maxBp}</div>
-                  <div>攻撃: {selectedCharacter.stats.attack}</div>
-                  <div>防御: {selectedCharacter.stats.defense}</div>
-                  <div>素早さ: {selectedCharacter.stats.speed}</div>
-                  <div>運(隙の糸): {selectedCharacter.stats.luck}</div>
+                  <div>HP: {liveCharacter.stats.maxHp}</div>
+                  <div>BP: {liveCharacter.stats.maxBp}</div>
+                  <div>攻撃: {liveCharacter.stats.attack}</div>
+                  <div>防御: {liveCharacter.stats.defense}</div>
+                  <div>素早さ: {liveCharacter.stats.speed}</div>
+                  <div>運(隙の糸): {liveCharacter.stats.luck}</div>
                 </div>
               </div>
 
-              {/* Techniques */}
-              <div className="bg-slate-900 p-2 rounded border border-slate-800 text-xs mb-3">
-                <div className="text-[10px] text-cyan-400 font-bold mb-1">【所持奥義・血鬼術】</div>
-                <div className="flex flex-col gap-1">
-                  {selectedCharacter.skills.map(sk => (
-                    <div key={sk.id} className="text-[11px] text-slate-200">
-                      <span className="text-amber-300 font-bold">{sk.name}</span>
-                      <span className="text-[10px] text-slate-400 ml-1">({sk.bpCost}BP)</span>
-                      <div className="text-[10px] text-slate-400">{sk.description}</div>
-                    </div>
-                  ))}
-                </div>
+              {/* Breathing Techniques & Secret Arts Progress View */}
+              <div className="bg-slate-900/90 p-2 rounded border border-slate-800 text-xs mb-3">
+                <BreathingProgressView character={liveCharacter} />
               </div>
             </div>
           ) : (
