@@ -24,7 +24,8 @@ import {
   Award,
   Users,
   HelpCircle,
-  Swords
+  Swords,
+  UserPlus
 } from 'lucide-react';
 
 interface StoryModeScreenProps {

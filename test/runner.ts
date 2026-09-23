@@ -168,6 +168,17 @@ async function runTests() {
     const appHtml = ReactDOMServer.renderToString(React.createElement(App));
     assert(appHtml.length > 1000, `Then: App component renders without throwing ReferenceError (HTML len: ${appHtml.length})`);
 
+    const { StoryModeScreen } = await import('../src/components/StoryModeScreen.tsx');
+    const storyHtml = ReactDOMServer.renderToString(React.createElement(StoryModeScreen, {
+      party,
+      catalog,
+      currentChapterIndex: 1,
+      onSelectStoryRecruit: () => {},
+      onStartStoryBoss: () => {},
+      onBack: () => {}
+    }));
+    assert(storyHtml.length > 500, `Then: StoryModeScreen (勧誘モード) renders successfully without ReferenceError (HTML len: ${storyHtml.length})`);
+
     const modalHtml = ReactDOMServer.renderToString(React.createElement(PartyFormationModal, {
       party,
       catalog,
