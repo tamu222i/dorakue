@@ -421,7 +421,7 @@ export default function App() {
   // Handle Starting a Wild Demon Encounter (supports 1 to 4 enemies, Swamp demon is 3 bodies)
   const handleStartRandomBattle = (enemy: Character, specificEnemies?: Character[]) => {
     const enemies = specificEnemies && specificEnemies.length > 0
-      ? specificEnemies.map(e => playthroughCount >= 2 ? EnemyGroupService.scaleEnemyForPlaythrough(e, playthroughCount, currentChapterIndex + 1) : e)
+      ? specificEnemies
       : EnemyGroupService.resolveEnemies(enemy, catalog, playthroughCount, currentChapterIndex + 1);
 
     // Register wild enemies as encountered
@@ -670,14 +670,14 @@ export default function App() {
                 SoundEngine.playConfirm();
                 setScreen('world');
               }}
-              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
+              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation whitespace-nowrap shrink-0 ${
                 screen === 'world' || screen === 'battle'
                   ? 'border-red-400 bg-red-950 text-red-200 shadow-sm ring-1 ring-red-400/50'
                   : 'border-red-800 bg-red-950/60 hover:bg-red-900 text-red-300'
               }`}
               title="鬼の討伐・探索・ボス戦へ移動"
             >
-              <Swords className="w-3.5 h-3.5 text-red-400" />
+              <Swords className="w-3.5 h-3.5 text-red-400 shrink-0" />
               <span><FuriganaText text="討伐[とうばつ]モード" /></span>
             </button>
 
@@ -688,7 +688,7 @@ export default function App() {
                 setScreen('story');
               }}
               disabled={screen === 'battle'}
-              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
+              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation whitespace-nowrap shrink-0 ${
                 screen === 'battle'
                   ? 'border-slate-800 bg-slate-900 text-slate-600 cursor-not-allowed'
                   : screen === 'story' || (screen === 'inn' && innActiveTab === 'scout')
@@ -697,7 +697,7 @@ export default function App() {
               }`}
               title="鬼殺隊の各章の仲間・柱を勧誘する（柱稽古＆試練）"
             >
-              <UserPlus className="w-3.5 h-3.5 text-cyan-400" />
+              <UserPlus className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
               <span><FuriganaText text="勧誘[かんゆう]モード" /></span>
             </button>
 
@@ -710,7 +710,7 @@ export default function App() {
                 setScreen('inn');
               }}
               disabled={screen === 'battle'}
-              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation ${
+              className={`px-2.5 py-1 rounded border font-bold flex items-center gap-1 transition-all touch-manipulation whitespace-nowrap shrink-0 ${
                 screen === 'battle'
                   ? 'border-slate-800 bg-slate-900 text-slate-600 cursor-not-allowed'
                   : screen === 'inn' && innActiveTab !== 'scout'
@@ -719,14 +719,14 @@ export default function App() {
               }`}
               title="藤の家紋の宿屋で休息・HP全回復・道具購入"
             >
-              <Bed className="w-3.5 h-3.5 text-amber-400" />
+              <Bed className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span><FuriganaText text="宿[やど]モード" /></span>
             </button>
 
             {/* Beginner Mode Toggle (Top Screen Header) */}
             <button
               onClick={toggleEasyAssist}
-              className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1.5 transition-all touch-manipulation ${
+              className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1.5 transition-all touch-manipulation whitespace-nowrap shrink-0 ${
                 isEasyAssist
                   ? 'border-emerald-400 bg-emerald-950/90 text-emerald-200 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
                   : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'

@@ -13,7 +13,7 @@ import { PixelSprite } from '../infrastructure/renderer/PixelSprite.tsx';
 import { SoundEngine } from '../infrastructure/audio/RetroSound.ts';
 import { DqFrame } from './DqFrame.tsx';
 import { FuriganaText } from './Ruby.tsx';
-import { MapPin, Swords, Bed, BookOpen, ShieldAlert, Award, RotateCcw, Sparkles, Skull, CheckCircle2, Waves, UserPlus } from 'lucide-react';
+import { MapPin, Swords, Bed, BookOpen, ShieldAlert, Award, RotateCcw, Sparkles, Skull, CheckCircle2, UserPlus } from 'lucide-react';
 
 interface WorldMapScreenProps {
   party: PartyAggregate;
@@ -51,7 +51,6 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
   onResetGame
 }) => {
   const [selectedChapterIdx, setSelectedChapterIdx] = useState<number>(currentChapterIndex);
-  const [selectedTrainingTier, setSelectedTrainingTier] = useState<'stage1' | 'stage2' | 'current' | 'swamp'>('stage1');
   const chapter = STORY_CHAPTERS[selectedChapterIdx] || STORY_CHAPTERS[0];
 
   // 2周目は1周目クリアしないと闘えない
@@ -62,41 +61,35 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
   const hiddenKizuki = TwelveKizukiService.getHiddenKizukiForChapter(chapter.chapterNumber);
   const isHiddenKizukiDefeated = hiddenKizuki ? defeatedDemonIds.has(hiddenKizuki.demonId) : false;
 
-  // Helper to start training / wild demon encounter with multiple enemies (1 to 4 enemies, Swamp demon is 3 bodies)
-  const triggerWildDemonEncounter = (tier: 'stage1' | 'stage2' | 'current' | 'swamp' = selectedTrainingTier) => {
+  // Party's current average level (or active leader level)
+  const activeMembers = party.activeMembers.length > 0 ? party.activeMembers : party.roster;
+  const partyCurrentLevel = activeMembers.length > 0
+    ? Math.max(1, Math.round(activeMembers.reduce((sum, m) => sum + m.level, 0) / activeMembers.length))
+    : 1;
+
+  // 4 progressive stages dynamically scaled around party's current level:
+  // 段階1: 少し弱い (安心修業) - パーティLvより少し弱い野良鬼
+  const tier1Level = Math.max(1, partyCurrentLevel <= 3 ? 1 : partyCurrentLevel - 3);
+  // 段階2: 同格・適正 (標準修業) - パーティLvと同等の野良鬼
+  const tier2Level = Math.max(1, partyCurrentLevel <= 1 ? 2 : partyCurrentLevel);
+  // 段階3: 少し強い (挑戦修業) - パーティLvより少し強い野良鬼
+  const tier3Level = partyCurrentLevel <= 1 ? 3 : partyCurrentLevel + 2;
+  // 段階4: 強い・猛特訓 (集中猛特訓) - パーティLvより強い野良鬼（大量経験値）
+  const tier4Level = partyCurrentLevel <= 1 ? 5 : partyCurrentLevel + 4;
+
+  // Helper to start training / wild demon encounter with 1 to 4 mob demons (bosses strictly excluded)
+  const triggerTrainingEncounter = (tier: 1 | 2 | 3 | 4) => {
     SoundEngine.playConfirm();
 
-    // 沼の鬼（三身一体・3体戦闘！）
-    if (tier === 'swamp') {
-      const swampDemon = catalog.find(c => c.id === 'demon_swamp') || catalog.find(c => c.name.includes('沼'));
-      if (swampDemon) {
-        const trio = EnemyGroupService.createSwampDemonTrio(swampDemon);
-        onStartRandomBattle(swampDemon, trio);
-        return;
-      }
-    }
+    let targetLevel: number;
+    if (tier === 1) targetLevel = tier1Level;
+    else if (tier === 2) targetLevel = tier2Level;
+    else if (tier === 3) targetLevel = tier3Level;
+    else targetLevel = tier4Level;
 
-    let demonPool: Character[] = [];
-
-    if (tier === 'stage1') {
-      // Stage 1 (藤襲山・最弱 Lv.1-3 雑魚鬼) - guaranteed weak trash demons for leveling up!
-      demonPool = catalog.filter(c => c.role === 'demon' && c.level <= 3);
-    } else if (tier === 'stage2') {
-      // Stage 2 (浅草 Lv.4-7 雑魚鬼)
-      demonPool = catalog.filter(c => c.role === 'demon' && c.level >= 4 && c.level <= 7);
-    } else {
-      // Current chapter recommended level
-      const targetLevel = chapter.recommendedLevel;
-      demonPool = catalog.filter(c => c.role === 'demon' && Math.abs(c.level - targetLevel) <= 3);
-    }
-
-    if (demonPool.length === 0) {
-      demonPool = catalog.filter(c => c.role === 'demon');
-    }
-
-    // Generate mob with 1 to 4 enemies!
-    const group = EnemyGroupService.createWildEnemyGroup(demonPool);
-    const mainEnemy = group[0] || catalog.find(c => c.role === 'demon')!;
+    // Generates 1 to 4 wild mob demons strictly excluding bosses, scaled to chosen level
+    const group = EnemyGroupService.createTrainingMobGroup(catalog, targetLevel);
+    const mainEnemy = group[0] || catalog.find(c => EnemyGroupService.isMobDemon(c)) || catalog[0];
     onStartRandomBattle(mainEnemy, group);
   };
 
@@ -119,8 +112,8 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
             {isSecondPlaythroughActive && (
-              <span className="px-2.5 py-1 bg-purple-950 text-purple-300 border border-purple-500 rounded text-xs font-bold flex items-center gap-1 shadow animate-pulse">
-                <Skull className="w-3.5 h-3.5 text-purple-400" />
+              <span className="px-2.5 py-1 bg-purple-950 text-purple-300 border border-purple-500 rounded text-xs font-bold flex items-center gap-1 shadow animate-pulse whitespace-nowrap shrink-0">
+                <Skull className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                 <span>第{playthroughCount}周目（隠れ鬼出現中）</span>
               </span>
             )}
@@ -130,9 +123,9 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 SoundEngine.playConfirm();
                 onOpenClearProgress();
               }}
-              className="px-3 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-amber-300 shadow touch-manipulation animate-pulse"
+              className="px-3 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-amber-300 shadow touch-manipulation animate-pulse whitespace-nowrap shrink-0"
             >
-              <Award className="w-3.5 h-3.5 text-yellow-300" />
+              <Award className="w-3.5 h-3.5 text-yellow-300 shrink-0" />
               <span><FuriganaText text="完全[かんぜん]クリア進捗[しんちょく]" /></span>
             </button>
 
@@ -141,10 +134,10 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 SoundEngine.playConfirm();
                 onOpenStoryMode();
               }}
-              className="px-3 py-2 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-cyan-400 shadow touch-manipulation"
+              className="px-3 py-2 bg-cyan-700 hover:bg-cyan-600 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-cyan-400 shadow touch-manipulation whitespace-nowrap shrink-0"
               title="各章の柱稽古やクイズ試練で仲間を勧誘する"
             >
-              <UserPlus className="w-3.5 h-3.5 text-cyan-200" />
+              <UserPlus className="w-3.5 h-3.5 text-cyan-200 shrink-0" />
               <span><FuriganaText text="勧誘[かんゆう]モード" /></span>
             </button>
 
@@ -153,9 +146,9 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 SoundEngine.playConfirm();
                 onGoToInn();
               }}
-              className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-amber-400 shadow touch-manipulation"
+              className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-amber-400 shadow touch-manipulation whitespace-nowrap shrink-0"
             >
-              <Bed className="w-3.5 h-3.5" />
+              <Bed className="w-3.5 h-3.5 shrink-0" />
               <span><FuriganaText text="藤[ふじ]の家[か]紋[もん]の宿[やど]" /></span>
             </button>
 
@@ -164,9 +157,9 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                 SoundEngine.playConfirm();
                 onOpenZukan();
               }}
-              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-indigo-400 shadow touch-manipulation"
+              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-white text-xs font-bold flex items-center gap-1.5 border border-indigo-400 shadow touch-manipulation whitespace-nowrap shrink-0"
             >
-              <Award className="w-3.5 h-3.5" />
+              <Award className="w-3.5 h-3.5 shrink-0" />
               <span><FuriganaText text="300種[しゅ]大[だい]図鑑[ずかん]" /></span>
             </button>
           </div>
@@ -267,16 +260,22 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
 
           {/* Action Buttons for this Chapter */}
           <div className="flex flex-col gap-2 mt-2">
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 onClick={() => {
                   SoundEngine.playConfirm();
                   onOpenStoryMode();
                 }}
-                className="py-2.5 px-3 rounded text-xs font-bold flex items-center justify-center gap-1.5 bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white border border-cyan-400 shadow-md touch-manipulation"
+                className="py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-700 via-blue-700 to-indigo-700 hover:from-cyan-600 hover:to-indigo-600 active:scale-[0.99] text-white border-2 border-cyan-300 shadow-md transition-all touch-manipulation min-h-[46px]"
+                title="各章の柱稽古やクイズ試練で仲間を勧誘する"
               >
-                <UserPlus className="w-4 h-4 text-cyan-200" />
-                <span><FuriganaText text="勧誘[かんゆう]モード（柱稽古[はしらげいこ]＆試練[しれん]で仲間[なかま]集[あつ]め）" /></span>
+                <UserPlus className="w-4 h-4 text-cyan-200 shrink-0" />
+                <div className="flex items-center gap-1.5 truncate">
+                  <span><FuriganaText text="勧[かん]誘[ゆう]モード" /></span>
+                  <span className="text-[10px] bg-cyan-950/80 text-cyan-200 px-1.5 py-0.5 rounded border border-cyan-400/60 font-normal shrink-0">
+                    仲間集め
+                  </span>
+                </div>
               </button>
 
               <button
@@ -289,18 +288,18 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
                   }
                 }}
                 disabled={!isUnlocked}
-                className={`flex-1 py-2.5 px-3 rounded text-xs font-bold flex items-center justify-center gap-2 border transition-all touch-manipulation ${
+                className={`py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border-2 transition-all touch-manipulation active:scale-[0.99] min-h-[46px] ${
                   isUnlocked
-                    ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white border-red-400 shadow-md'
+                    ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-500 text-white border-red-400 shadow-md'
                     : 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
                 }`}
               >
-                <ShieldAlert className="w-4 h-4" />
-                <span>
+                <ShieldAlert className="w-4 h-4 shrink-0 text-amber-300" />
+                <span className="truncate">
                   {chapter.chapterNumber === 8 ? (
                     <FuriganaText text="最終[さいしゅう]決戦[けっせん]！鬼舞辻[きぶつじ]無惨[むざん]に挑[いど]む" />
                   ) : chapter.chapterNumber === 9 ? (
-                    <FuriganaText text="最終[さいしゅう]隠[かく]し決戦[けっせん]！鬼化[おにか]・炭治郎[たんじろう]（鬼の王）に挑[いど]む" />
+                    <FuriganaText text="最終[さいしゅう]隠[かく]し決戦[けっせん]！鬼化[おにか]炭治郎[たんじろう]に挑[いど]む" />
                   ) : (
                     <FuriganaText text={`討[とう]伐[ばつ]任務[にんむ]: ${chapter.bossName} に挑[いど]む`} />
                   )}
@@ -392,63 +391,77 @@ export const WorldMapScreen: React.FC<WorldMapScreenProps> = ({
               </div>
             )}
 
-            {/* Level-Up Training Section ("弱いステージの鬼をレベル上げに出してね") */}
+            {/* Level-Up Training Section ("パーティの現在のレベルより少し弱いものから強いものへ4段階で並べて") */}
             <div className="bg-slate-950/70 border border-amber-500/40 rounded p-2.5 flex flex-col gap-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-amber-300 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
-                  <FuriganaText text="レベル上[あ]げ修[しゅ]業[ぎょう]場[じょう]（出現[しゅつげん]する鬼[おに]を選択[せんたく]）" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                  <FuriganaText text="レベル上[あ]げ修[しゅ]業[ぎょう]場[じょう]（パーティ現在[げんざい]Lvに応[おう]じた4段階[だんかい]）" />
                 </span>
-                <span className="text-[10px] text-slate-400">1タップで戦闘開始</span>
+                <span className="text-[11px] text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800 self-start sm:self-auto font-bold flex items-center gap-1">
+                  <span>隊員平均:</span>
+                  <span className="text-yellow-300 font-extrabold">Lv.{partyCurrentLevel}</span>
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                {/* 段階1: 少し弱い */}
                 <button
-                  onClick={() => triggerWildDemonEncounter('stage1')}
-                  className="py-2.5 px-2 bg-emerald-950/80 hover:bg-emerald-900 active:bg-emerald-800 text-emerald-200 text-xs font-bold rounded border border-emerald-500 flex flex-col items-center justify-center gap-0.5 shadow transition-all touch-manipulation"
+                  onClick={() => triggerTrainingEncounter(1)}
+                  className="py-2.5 px-2 bg-emerald-950/85 hover:bg-emerald-900 active:bg-emerald-800 text-emerald-200 text-xs font-bold rounded-lg border-2 border-emerald-500 flex flex-col items-center justify-center gap-1 shadow transition-all touch-manipulation min-h-[64px] hover:scale-[1.01] active:scale-[0.99]"
+                  title={`パーティ(Lv.${partyCurrentLevel})より少し弱い鬼(Lv.${tier1Level})で安全に経験値を稼ぐ`}
                 >
-                  <span className="text-[11px] text-emerald-300 font-bold">
-                    <FuriganaText text="🔰 最弱[さいじゃく]・藤襲山[ふじかさねやま] (Lv.1〜3)" />
+                  <span className="text-[11px] text-emerald-300 font-bold whitespace-nowrap flex items-center gap-1">
+                    <span>🔰</span>
+                    <FuriganaText text={`段階[だんかい]1: 少[すこ]し弱[よわ]い (Lv.${tier1Level})`} />
                   </span>
-                  <span className="text-[9px] text-emerald-400/90">
-                    <FuriganaText text="鬼[おに]の群[む]れ (1〜4体[たい]) 出現[しゅつげん]！" />
+                  <span className="text-[9px] text-emerald-400/90 whitespace-nowrap">
+                    野良鬼の群れ (1〜4体)・安全修業
                   </span>
                 </button>
 
+                {/* 段階2: 同格・適正 */}
                 <button
-                  onClick={() => triggerWildDemonEncounter('stage2')}
-                  className="py-2.5 px-2 bg-cyan-950/80 hover:bg-cyan-900 active:bg-cyan-800 text-cyan-200 text-xs font-bold rounded border border-cyan-500 flex flex-col items-center justify-center gap-0.5 shadow transition-all touch-manipulation"
+                  onClick={() => triggerTrainingEncounter(2)}
+                  className="py-2.5 px-2 bg-cyan-950/85 hover:bg-cyan-900 active:bg-cyan-800 text-cyan-200 text-xs font-bold rounded-lg border-2 border-cyan-500 flex flex-col items-center justify-center gap-1 shadow transition-all touch-manipulation min-h-[64px] hover:scale-[1.01] active:scale-[0.99]"
+                  title={`パーティ(Lv.${partyCurrentLevel})と同格の鬼(Lv.${tier2Level})でバランス良く鍛える`}
                 >
-                  <span className="text-[11px] text-cyan-300 font-bold">
-                    <FuriganaText text="🏮 初級[しょきゅう]・浅草街[あさくさがい] (Lv.4〜7)" />
+                  <span className="text-[11px] text-cyan-300 font-bold whitespace-nowrap flex items-center gap-1">
+                    <span>⚔️</span>
+                    <FuriganaText text={`段階[だんかい]2: 同[どう]格[かく]・適正[てきせい] (Lv.${tier2Level})`} />
                   </span>
-                  <span className="text-[9px] text-cyan-400/90">
-                    <FuriganaText text="足鬼[あしおに]・首鬼[くびおに]など最大[さいだい]4体[たい]！" />
+                  <span className="text-[9px] text-cyan-400/90 whitespace-nowrap">
+                    野良鬼の群れ (1〜4体)・着実に育成
                   </span>
                 </button>
 
+                {/* 段階3: 少し強い */}
                 <button
-                  onClick={() => triggerWildDemonEncounter('swamp')}
-                  className="py-2.5 px-2 bg-blue-950/80 hover:bg-blue-900 active:bg-blue-800 text-blue-200 text-xs font-bold rounded border border-blue-400 flex flex-col items-center justify-center gap-0.5 shadow transition-all touch-manipulation"
+                  onClick={() => triggerTrainingEncounter(3)}
+                  className="py-2.5 px-2 bg-amber-950/85 hover:bg-amber-900 active:bg-amber-800 text-amber-200 text-xs font-bold rounded-lg border-2 border-amber-500 flex flex-col items-center justify-center gap-1 shadow transition-all touch-manipulation min-h-[64px] hover:scale-[1.01] active:scale-[0.99]"
+                  title={`パーティ(Lv.${partyCurrentLevel})より少し強い鬼(Lv.${tier3Level})で多めの経験値を獲得`}
                 >
-                  <span className="text-[11px] text-blue-300 font-bold flex items-center gap-1">
-                    <Waves className="w-3 h-3 text-cyan-400" />
-                    <FuriganaText text="🌊 沼[ぬま]の鬼[おに]（三身[さんみ]一体[いったい]）" />
+                  <span className="text-[11px] text-amber-300 font-bold whitespace-nowrap flex items-center gap-1">
+                    <span>🔥</span>
+                    <FuriganaText text={`段階[だんかい]3: 少[すこ]し強[つよ]い (Lv.${tier3Level})`} />
                   </span>
-                  <span className="text-[9px] text-blue-300/90">
-                    <FuriganaText text="一本角[いっぽんづの]・二本角[にほんづの]・三本角[さんぼんづの]の3体[たい]同時[どうじ]！" />
+                  <span className="text-[9px] text-amber-300/90 whitespace-nowrap">
+                    野良鬼の群れ (1〜4体)・多めの経験値
                   </span>
                 </button>
 
+                {/* 段階4: 強い・猛特訓 */}
                 <button
-                  onClick={() => triggerWildDemonEncounter('current')}
-                  className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-amber-200 text-xs font-bold rounded border border-slate-600 flex flex-col items-center justify-center gap-0.5 shadow transition-all touch-manipulation"
+                  onClick={() => triggerTrainingEncounter(4)}
+                  className="py-2.5 px-2 bg-purple-950/85 hover:bg-purple-900 active:bg-purple-800 text-purple-200 text-xs font-bold rounded-lg border-2 border-purple-500 flex flex-col items-center justify-center gap-1 shadow transition-all touch-manipulation min-h-[64px] hover:scale-[1.01] active:scale-[0.99]"
+                  title={`パーティ(Lv.${partyCurrentLevel})より強い鬼(Lv.${tier4Level})で大量の経験値を一気に獲得`}
                 >
-                  <span className="text-[11px] text-amber-300 font-bold">
-                    <FuriganaText text={`⚔️ 現[げん]舞台[ぶたい]: 第[だい]${chapter.chapterNumber}章[しょう]`} />
+                  <span className="text-[11px] text-purple-300 font-bold whitespace-nowrap flex items-center gap-1">
+                    <span>💀</span>
+                    <FuriganaText text={`段階[だんかい]4: 強[つよ]い・猛特訓[もうとっくん] (Lv.${tier4Level})`} />
                   </span>
-                  <span className="text-[9px] text-slate-400">
-                    推奨Lv.{chapter.recommendedLevel} 周辺の鬼 (1〜4体)
+                  <span className="text-[9px] text-purple-300/90 whitespace-nowrap">
+                    野良鬼の群れ (1〜4体)・大量経験値！
                   </span>
                 </button>
               </div>

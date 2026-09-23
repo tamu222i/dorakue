@@ -45,6 +45,58 @@ const SWAMP_SKILLS: Record<string, Skill> = {
   }
 };
 
+// Standard skills for wild mob demons (scratch, bite, pounce, roar)
+const MOB_ATTACK_SKILLS: Record<string, Skill> = {
+  scratch: {
+    id: 'sk_mob_scratch',
+    name: '引っ掻き',
+    katagaki: '爪攻撃',
+    breathStyle: 'none',
+    bpCost: 0,
+    power: 75,
+    target: 'single',
+    effectType: 'damage',
+    description: '鋭い鉤爪を振り下ろして引っ掻く。',
+    animation: 'beast_fangs'
+  },
+  bite: {
+    id: 'sk_mob_bite',
+    name: '噛みつき',
+    katagaki: '牙攻撃',
+    breathStyle: 'none',
+    bpCost: 4,
+    power: 95,
+    target: 'single',
+    effectType: 'damage',
+    description: '鋭い牙を剥き出しにして肉片を食いちぎる。',
+    animation: 'beast_fangs'
+  },
+  pounce: {
+    id: 'sk_mob_pounce',
+    name: '飛びかかり',
+    katagaki: '肉弾強襲',
+    breathStyle: 'none',
+    bpCost: 6,
+    power: 110,
+    target: 'single',
+    effectType: 'damage',
+    description: '全速力で飛びかかり、押し倒して爪を立てる。',
+    animation: 'beast_fangs'
+  },
+  roar: {
+    id: 'sk_mob_roar',
+    name: '鬼の威嚇咆哮',
+    katagaki: '威嚇',
+    breathStyle: 'none',
+    bpCost: 8,
+    power: 85,
+    target: 'all',
+    effectType: 'damage',
+    description: '耳をつんざく咆哮を放ち、周囲の隊士全体に衝撃を与える。',
+    animation: 'blood_dark'
+  }
+};
+
 export class EnemyGroupService {
   /**
    * Scales an enemy for 2nd and subsequent playthroughs (2周目はレベル1上がっていく感じで調整)
@@ -348,5 +400,161 @@ export class EnemyGroupService {
         id: `${c.id}_${idx + 1}`
       };
     });
+  }
+
+  /**
+   * Strictly determines whether a character is a wild mob demon (雑魚鬼・野良鬼),
+   * strictly excluding bosses, Kizuki, and story bosses so player can safely grind levels.
+   */
+  public static isMobDemon(c: Character): boolean {
+    if (c.role !== 'demon') return false;
+    // Explicit mob demons generated for leveling up (catalog 201-300)
+    if (c.id.startsWith('demon_mob_')) return true;
+    // Disqualify by rank (Kizuki / Demon Progenitor)
+    if (c.rank === '下弦' || c.rank === '上弦' || c.rank === '鬼の始祖') return false;
+
+    // Explicit boss IDs to exclude
+    const bossIds = new Set([
+      'demon_temple', 'demon_hand', 'demon_swamp', 'demon_yahaba_susamaru',
+      'demon_susamaru', 'demon_yahaba', 'demon_kyogai', 'demon_tongue',
+      'demon_spider_mother', 'demon_spider_father', 'demon_spider_brother', 'demon_spider_sister',
+      'demon_rui', 'demon_enmu_akaza', 'demon_enmu', 'demon_akaza',
+      'demon_daki_gyutaro', 'demon_daki', 'demon_gyutaro', 'demon_kaigaku',
+      'demon_gyokko_hantengu', 'demon_gyokko', 'demon_hantengu', 'demon_doma',
+      'demon_muzan_final', 'demon_kokushibo', 'demon_tanjiro',
+      'demon_kamanue', 'demon_mukago', 'demon_wakuraba', 'demon_rokuro'
+    ]);
+    if (bossIds.has(c.id)) return false;
+
+    // Any ID with 'boss' or 'kizuki'
+    if (c.id.includes('boss') || c.id.includes('kizuki')) return false;
+
+    return c.rank === '一般鬼' || c.rank === '異形鬼';
+  }
+
+  /**
+   * Scales a wild mob demon's level and stats appropriately for the target level.
+   * Keeps stats balanced so party members are not one-shot killed and can level up smoothly.
+   */
+  public static scaleMobDemonToLevel(baseMob: Character, targetLevel: number): Character {
+    const safeTargetLevel = Math.max(1, targetLevel);
+    const baseLevel = Math.max(1, baseMob.level || 1);
+
+    // Select skills appropriate for scaled level
+    let mobSkills: Skill[];
+    if (safeTargetLevel <= 3) {
+      mobSkills = [MOB_ATTACK_SKILLS.scratch];
+    } else if (safeTargetLevel <= 7) {
+      mobSkills = [MOB_ATTACK_SKILLS.scratch, MOB_ATTACK_SKILLS.bite];
+    } else if (safeTargetLevel <= 15) {
+      mobSkills = [MOB_ATTACK_SKILLS.scratch, MOB_ATTACK_SKILLS.bite, MOB_ATTACK_SKILLS.pounce];
+    } else {
+      mobSkills = [MOB_ATTACK_SKILLS.scratch, MOB_ATTACK_SKILLS.bite, MOB_ATTACK_SKILLS.pounce, MOB_ATTACK_SKILLS.roar];
+    }
+
+    if (safeTargetLevel === baseLevel) {
+      return {
+        ...baseMob,
+        skills: mobSkills,
+        stats: { ...baseMob.stats }
+      };
+    }
+
+    const ratio = safeTargetLevel / baseLevel;
+    // Balanced mob stats:
+    // At Lv.1 ~35 HP, 14 Atk, 8 Def, 16 Spd.
+    // At Lv.10 ~180 HP, 55 Atk, 38 Def, 30 Spd.
+    // At Lv.25 ~560 HP, 116 Atk, 85 Def, 53 Spd.
+    // At Lv.45 ~1050 HP, 170 Atk, 125 Def, 72 Spd.
+    const scaledMaxHp = Math.max(35, Math.round(baseMob.stats.maxHp * Math.pow(ratio, 1.05)));
+    const scaledAttack = Math.max(12, Math.round(baseMob.stats.attack * Math.pow(ratio, 0.72)));
+    const scaledDefense = Math.max(6, Math.round(baseMob.stats.defense * Math.pow(ratio, 0.70)));
+    const scaledSpeed = Math.max(12, Math.round(baseMob.stats.speed * Math.pow(ratio, 0.50)));
+
+    return {
+      ...baseMob,
+      level: safeTargetLevel,
+      title: `${baseMob.name} (Lv.${safeTargetLevel})`,
+      skills: mobSkills,
+      stats: {
+        ...baseMob.stats,
+        maxHp: scaledMaxHp,
+        hp: scaledMaxHp,
+        maxBp: Math.round(20 + safeTargetLevel * 2),
+        bp: Math.round(20 + safeTargetLevel * 2),
+        attack: scaledAttack,
+        defense: scaledDefense,
+        speed: scaledSpeed,
+        luck: baseMob.stats.luck
+      }
+    };
+  }
+
+  /**
+   * Generates a balanced mob group (1 to 4 enemies) for training based on target level.
+   * STRICTLY excludes boss characters so that player can safely grind levels!
+   */
+  public static createTrainingMobGroup(
+    catalog: Character[],
+    targetLevel: number,
+    requestedCount?: number
+  ): Character[] {
+    const safeLevel = Math.max(1, targetLevel);
+
+    // 1. Filter ONLY mob demons
+    const allMobs = catalog.filter(c => EnemyGroupService.isMobDemon(c));
+    const pool = allMobs.length > 0
+      ? allMobs
+      : catalog.filter(c => c.id.startsWith('demon_mob_'));
+
+    if (pool.length === 0) {
+      // Fallback safe dummy mob if pool is somehow empty
+      const dummy: Character = {
+        id: 'demon_mob_dummy',
+        catalogNo: 201,
+        name: '足鬼',
+        title: `藤襲山の野良鬼 (Lv.${safeLevel})`,
+        role: 'demon',
+        rank: '一般鬼',
+        breathStyle: 'blood',
+        level: safeLevel,
+        exp: 0,
+        nextExp: 0,
+        stats: {
+          maxHp: 35 + safeLevel * 18,
+          hp: 35 + safeLevel * 18,
+          maxBp: 20 + safeLevel * 2,
+          bp: 20 + safeLevel * 2,
+          attack: 14 + Math.round(safeLevel * 3.2),
+          defense: 8 + Math.round(safeLevel * 2.2),
+          speed: 15 + Math.round(safeLevel * 1.1),
+          luck: 10
+        },
+        skills: [MOB_ATTACK_SKILLS.scratch],
+        spriteConfig: {
+          hairColor: '#1e293b',
+          skinColor: '#cbd5e1',
+          eyeColor: '#ef4444',
+          haoriColor: '#475569',
+          haoriPattern: 'plain',
+          hasHorn: false,
+          accentColor: '#475569'
+        },
+        lore: '野良鬼。修業用。',
+        isUnlocked: false
+      };
+      return EnemyGroupService.createWildEnemyGroup([dummy], requestedCount);
+    }
+
+    // 2. Select candidates whose base levels are closest to safeLevel
+    const sorted = [...pool].sort((a, b) => Math.abs(a.level - safeLevel) - Math.abs(b.level - safeLevel));
+    const closestCandidates = sorted.slice(0, 16);
+
+    // 3. Scale candidate mobs to safeLevel
+    const scaledCandidates = closestCandidates.map(mob =>
+      EnemyGroupService.scaleMobDemonToLevel(mob, safeLevel)
+    );
+
+    return EnemyGroupService.createWildEnemyGroup(scaledCandidates, requestedCount);
   }
 }

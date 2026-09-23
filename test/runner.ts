@@ -371,6 +371,50 @@ async function runTests() {
   assert(scaledCh2.level === scaledCh1.level + 1, 'Then: 2nd playthrough enemy levels increase by 1 per stage (2周目はレベル1上がっていく)');
   assert(scaledCh1.stats.maxHp > baseDemon.stats.maxHp, 'Then: Scaled enemy stats (HP) increase accordingly');
 
+  console.log('Scenario: Subjugation mode level-up grinding with 4 tiers and strictly no boss demons');
+  // 1. isMobDemon strictly excludes boss characters
+  const muzanDemon = catalog.find(c => c.name.includes('鬼舞辻無惨'))!;
+  const ruiDemon = catalog.find(c => c.name.includes('累'))!;
+  const handDemonChar = catalog.find(c => c.id === 'demon_hand')!;
+  const akazaDemon = catalog.find(c => c.id === 'demon_akaza')!;
+  const mobDemon1 = catalog.find(c => c.id === 'demon_mob_1')!;
+  const mobDemon20 = catalog.find(c => c.id === 'demon_mob_20')!;
+
+  assert(EnemyGroupService.isMobDemon(muzanDemon) === false, 'Then: Muzan is excluded from mob training (not a mob)');
+  assert(EnemyGroupService.isMobDemon(ruiDemon) === false, 'Then: Lower Moon Rui is excluded from mob training');
+  assert(EnemyGroupService.isMobDemon(handDemonChar) === false, 'Then: Hand Demon boss is excluded from mob training');
+  assert(EnemyGroupService.isMobDemon(akazaDemon) === false, 'Then: Upper Moon Akaza is excluded from mob training');
+  assert(EnemyGroupService.isMobDemon(mobDemon1) === true, 'Then: Mob demon 1 is recognized as mob');
+  assert(EnemyGroupService.isMobDemon(mobDemon20) === true, 'Then: Mob demon 20 is recognized as mob');
+
+  // 2. createTrainingMobGroup generates 1 to 4 enemies strictly of the target level and no bosses
+  const groupLv10 = EnemyGroupService.createTrainingMobGroup(catalog, 10);
+  assert(groupLv10.length >= 1 && groupLv10.length <= 4, `Then: Training group has 1-4 enemies (actual: ${groupLv10.length})`);
+  assert(groupLv10.every(e => e.level === 10), 'Then: All generated enemies are scaled exactly to target level 10');
+  assert(groupLv10.every(e => EnemyGroupService.isMobDemon(e)), 'Then: All generated enemies in group are pure mob demons (no bosses)');
+  assert(groupLv10.every(e => e.stats.maxHp < 500 && e.stats.maxHp > 50), 'Then: Mob demons have fair, grindable HP (not boss-tier 4000+ HP)');
+
+  // 3. 4 difficulty tiers scale from slightly weaker to stronger based on party level
+  const calcTiers = (partyLvl: number) => {
+    const tier1 = Math.max(1, partyLvl <= 3 ? 1 : partyLvl - 3);
+    const tier2 = Math.max(1, partyLvl <= 1 ? 2 : partyLvl);
+    const tier3 = partyLvl <= 1 ? 3 : partyLvl + 2;
+    const tier4 = partyLvl <= 1 ? 5 : partyLvl + 4;
+    return [tier1, tier2, tier3, tier4];
+  };
+
+  const [t1_lv1, t2_lv1, t3_lv1, t4_lv1] = calcTiers(1);
+  assert(t1_lv1 === 1 && t2_lv1 === 2 && t3_lv1 === 3 && t4_lv1 === 5, 'Then: Party Lv.1 has tiers Lv.1 (weak) -> Lv.2 -> Lv.3 -> Lv.5 (strong)');
+
+  const [t1_lv10, t2_lv10, t3_lv10, t4_lv10] = calcTiers(10);
+  assert(t1_lv10 === 7, `Then: Party Lv.10 Stage 1 is slightly weaker (Lv.7)`);
+  assert(t2_lv10 === 10, `Then: Party Lv.10 Stage 2 is equal/fair (Lv.10)`);
+  assert(t3_lv10 === 12, `Then: Party Lv.10 Stage 3 is slightly stronger (Lv.12)`);
+  assert(t4_lv10 === 14, `Then: Party Lv.10 Stage 4 is strong intensive (Lv.14)`);
+
+  const [t1_lv40, t2_lv40, t3_lv40, t4_lv40] = calcTiers(40);
+  assert(t1_lv40 === 37 && t2_lv40 === 40 && t3_lv40 === 42 && t4_lv40 === 44, 'Then: Party Lv.40 stages are Lv.37 -> Lv.40 -> Lv.42 -> Lv.44');
+
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);
